@@ -7,10 +7,16 @@ Programmable interface to Cooljugator's Modern Greek verb database.
 Installation
 ---------------
 
+Prerequisites
+
+- Python 3.6+
+- ``pip``
+- (optional) ``virtualenvwrapper``
+
 .. code-block:: bash
 
     git clone git@github.com:tsouchlarakis/greek-verbs.git
-    rmvirtualenv greek-verbs
+    rmvirtualenv greek-verbs  # Only if using virtualenvwrapper to manage virtualenvs
     mkvirtualenv greek-verbs
     workon greek-verbs
     cd greek-verbs
@@ -39,12 +45,12 @@ Usage
 
     greek-verbs anki-flashcard --verb νομίζω
 
-⚓️ Changelog
-=============
+Changelog
+---------
 
 See `changelog <CHANGELOG.rst>`_.
 
-📜 License
-==========
+License
+-------
 
 See `license <LICENSE>`_.
