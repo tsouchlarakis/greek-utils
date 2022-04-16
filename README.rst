@@ -30,7 +30,7 @@ Usage
 
 .. code-block:: bash
 
-    greek-verbs scrape-conjugations --json-output-fpath ~/Desktop/verb_conjugations.json
+    $ greek-verbs scrape-conjugations --json-output-fpath ~/Desktop/verb_conjugations.json
 
 **Show data for a given verb or verbs**:
 
@@ -39,7 +39,7 @@ Usage
     $ greek-verbs show --verb νομίζω  # Can add an arbitrary number of verbs with --verb verb2 --verb verb3 ...
 
     +----------------+---------------+-------------+----------------+
-    \| Present Simple | Future Simple | Past Aorist | Past Imperfect |
+    | Present Simple | Future Simple | Past Aorist | Past Imperfect |
     +================+===============+=============+================+
     | νομίζω         | θα νομίσω     | νόμισα      | νόμιζα         |
     +----------------+---------------+-------------+----------------+
