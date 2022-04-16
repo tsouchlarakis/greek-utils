@@ -39,7 +39,7 @@ Usage
     $ greek-verbs show --verb νομίζω  # Can add an arbitrary number of verbs with --verb verb2 --verb verb3 ...
 
     +----------------+---------------+-------------+----------------+
-    | Present Simple | Future Simple | Past Aorist | Past Imperfect |
+    \| Present Simple | Future Simple | Past Aorist | Past Imperfect |
     +================+===============+=============+================+
     | νομίζω         | θα νομίσω     | νόμισα      | νόμιζα         |
     +----------------+---------------+-------------+----------------+
@@ -62,8 +62,8 @@ Usage
     | νομίζετε                     | νομίσετε                   |
     +------------------------------+----------------------------+
 
-    Ελλήνικα: ... \# first example usage in Greek
-    English: ... \# second example usage in Greek
+    Ελλήνικα: ... # first example usage in Greek
+    English: ... # second example usage in Greek
 
     ...more example usages
 
