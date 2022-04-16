@@ -36,12 +36,7 @@ Usage
 
 .. code-block:: bash
 
-    greek-verbs show --verb νομίζω  # One verb
-    greek-verbs show --verb νομίζω --verb έχω  # Multiple verbs
-
-Output:
-
-.. code-block:: bash
+    $ greek-verbs show --verb νομίζω  # Can add an arbitrary number of verbs with --verb verb2 --verb verb3 ...
 
     +----------------+---------------+-------------+----------------+
     | Present Simple | Future Simple | Past Aorist | Past Imperfect |
@@ -76,11 +71,8 @@ Output:
 
 .. code-block:: bash
 
-    greek-verbs anki-flashcard --verb νομίζω
+    $ greek-verbs anki-flashcard --verb νομίζω
 
-Output:
-
-.. code-block:: bash
     Front
     =====
     νομίζω
