@@ -108,6 +108,12 @@ def get_example_usages(base_url: str, verb: str) -> dict:
 
 @click.command()
 def scrape_conjugations(json_output_fpath: str) -> None:
+    """
+    Scrape Cooljugator site for all Modern Greek verb conjugations.
+    """
+    json_output_fpath = expanduser(json_output_fpath)
+    assert splitext(json_output_fpath)[1] == '.json', 'Output file must be a JSON file.'
+
     # Get universe of verbs to scrape
     with open(join(dirname(__file__),  'verb_list.txt'), 'r') as f:
         full_verb_list = f.read().splitlines()
