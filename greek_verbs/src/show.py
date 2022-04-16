@@ -101,7 +101,7 @@ def print_example_usages(example_usages: dict) -> None:
     if len(example_usages):
         for greek, english in example_usages.items():
             print()
-            print(f'Εελλήνικα: {greek}\nEnglish: {english}')
+            print(f'Ελλήνικα: {greek}\nEnglish: {english}')
 
 
 @click.option('--verb', type=str, required=True, multiple=True,
