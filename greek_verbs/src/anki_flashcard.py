@@ -74,6 +74,6 @@ def anki_flashcard(verb: str, conjugations_json: str) -> None:
     if verb in verb_conjugations:
         md_table_str = collapse_md_tables(conjugation_to_md_tables(verb_conjugations[verb]['conjugation']))
 
-        print(f'Front\n=====\n{verb}')
+        print(f'{verb}')
         print()
-        print(f'Back\n====\n{md_table_str}')
+        print(f'{md_table_str}')
