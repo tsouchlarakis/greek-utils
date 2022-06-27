@@ -77,3 +77,5 @@ def anki_flashcard(verb: str, conjugations_json: str) -> None:
         print(f'{verb}')
         print()
         print(f'{md_table_str}')
+    else:
+        print("No such verb found 'τσακώνομαι'!")
