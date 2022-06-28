@@ -3,58 +3,56 @@ import json
 from os.path import join, dirname
 
 
-def conjugation_to_md_tables(conj: dict) -> dict:
+class Attribute():
+    pass
+
+
+def conjugation_to_html(verb: str, conj: dict) -> str:
     """
     Convert the conjugation dictionary output of `get_conjugation()`
-    to a Markdown table.
+    to HTML that will populate the Anki flashcard and will be automatically
+    parsed by Anki in tabular format.
     """
-    md_tables = {'main': '', 'imperative': ''}
+    vars = Attribute()
+    for k, v in conj.items():
+        setattr(vars, k, v)
 
-    main_md_table_string = '\n'.join([
-        f"| Present (simple) | Future (simple) | Past (aorist) | Past (imperf.)",
-        f"εγω | {conj['present_simple_1sg']} | {conj['future_simple_1sg']} | {conj['past_aorist_1sg']} | {conj['past_imperfect_1sg']}",
-        f"εσυ | {conj['present_simple_2sg']} | {conj['future_simple_2sg']} | {conj['past_aorist_2sg']} | {conj['past_imperfect_2sg']}",
-        f"αυτ(ος/ή/ό) | {conj['present_simple_3sg']} | {conj['future_simple_3sg']} | {conj['past_aorist_3sg']} | {conj['past_imperfect_3sg']}",
-        f"εμείς | {conj['present_simple_1pl']} | {conj['future_simple_1pl']} | {conj['past_aorist_1pl']} | {conj['past_imperfect_1pl']}",
-        f"εσείς | {conj['present_simple_2pl']} | {conj['future_simple_2pl']} | {conj['past_aorist_2pl']} | {conj['past_imperfect_2pl']}",
-        f"αυτ(οί/ές/ά) | {conj['present_simple_3pl']} | {conj['future_simple_3pl']} | {conj['past_aorist_3pl']} | {conj['past_imperfect_3pl']}",
-    ])
+    conj = vars
+    del vars
 
-    md_tables['main'] = main_md_table_string
+    with open(join(dirname(__file__), 'anki_flashcard_template.html'), 'r') as f:
+        html_template = f.read()
+        html_template = html_template.format(**locals())
 
-    # Imperative table is not required
-    is_imperative_table_present = \
-        conj['imperative_imperfect_mood_2sg'] > '' \
-        or conj['imperative_imperfect_mood_2pl'] > '' \
-        or conj['imperative_perfect_mood_2sg'] > '' \
-        or conj['imperative_perfect_mood_2pl'] > ''
-
-    if is_imperative_table_present:
-        imperative_md_table_string = '\n'.join([
-            f"| Imperative (imperf. mood) | Imperative (perf. mood)",
-            f"εσυ | {conj['imperative_imperfect_mood_2sg']} | {conj['imperative_perfect_mood_2sg']}",
-            f"εσείς | {conj['imperative_imperfect_mood_2pl']} | {conj['imperative_perfect_mood_2pl']}",
-        ])
-
-        md_tables['imperative'] = imperative_md_table_string
-
-    return md_tables
+    return html_template
 
 
-def collapse_md_tables(md_tables: dict) -> str:
+def format_example_usages(conj: dict, example_usages: dict) -> str:
     """
-    Accept the result of `conjugation_to_md_tables()` and format as a string with
-    one or both tables, ready to be pasted in to Anki.
+    Extract example usages from the conjugation and format them for
+    an Anki flashcard. The input is a dictionary with key:value pairs
+    of Greek:English for each example usage.
     """
-    verb_main_table_str = md_tables['main']
+    if len(example_usages):
+        template = '{greek}<br><em>{english}</em>'
 
-    if md_tables['imperative'] > '':
-        verb_imperative_table_str = md_tables['imperative']
-        verb_all_md_tables_str = '\n\n'.join([verb_main_table_str, verb_imperative_table_str])
+        usages = []
+        for greek, english in example_usages.items():
+            clean_usage = lambda x: x.replace('#', '').strip().strip('-').strip().strip('"').strip()
+
+            greek = clean_usage(greek)
+            english = clean_usage(english)
+            usage = template.format(greek=greek, english=english)
+
+            for conj_name, conj_realization in conj.items():
+                usage = usage.replace(conj_realization, f'<b>{conj_realization}</b>')
+
+            usages.append(usage)
+
+        usages_str = '<br><br>'.join(usages)
+        return usages_str
     else:
-        verb_all_md_tables_str = verb_main_table_str
-
-    return verb_all_md_tables_str
+        return ''
 
 
 @click.option('--verb', type=str, required=True,
@@ -72,10 +70,16 @@ def anki_flashcard(verb: str, conjugations_json: str) -> None:
 
     verb = verb.lower()
     if verb in verb_conjugations:
-        md_table_str = collapse_md_tables(conjugation_to_md_tables(verb_conjugations[verb]['conjugation']))
+        conjugation_table_str = conjugation_to_html(verb, verb_conjugations[verb]['conjugation'])
+        example_usage_str = format_example_usages(verb_conjugations[verb]['conjugation'], verb_conjugations[verb]['example_usages'])
 
-        print(f'{verb}')
-        print()
-        print(f'{md_table_str}')
+        anki_flashcard_str = verb
+        anki_flashcard_str += '<br><br>'
+        anki_flashcard_str+= conjugation_table_str
+        if len(example_usage_str) > 0:
+            anki_flashcard_str += '<br>'
+            anki_flashcard_str += example_usage_str
+
+        print(f'{anki_flashcard_str}')
     else:
-        print("No such verb found 'τσακώνομαι'!")
+        print(f"No such verb found '{verb}'!")
