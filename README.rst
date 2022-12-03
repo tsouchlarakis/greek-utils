@@ -20,7 +20,7 @@ Prerequisites
     mkvirtualenv greek-verbs
     workon greek-verbs
     cd greek-verbs
-    pip install -r requirements.in
+    pip install -r requirements.txt
     pip install -e .
 
 Usage
@@ -139,7 +139,7 @@ Usage
                 <td style="width: 33%; padding: 2px; border: 1px solid;">νομίσετε</td>
             </tr>
         </tbody>
-        
+
         ...plus another HTML table with sample usages and their English translations
 
 When pasted into Anki, it'll look like this:
