@@ -72,24 +72,75 @@ Usage
 .. code-block:: bash
 
     $ greek-verbs anki-flashcard --verb νομίζω
+    νομίζω<br><br><table class="table_class_basic_full_width" style="font-size: 85%; width: 100%; border-collapse: collapse; border: 1px solid;">
+        <thead>
+            <tr>
+                <th style="width:20%; text-align:left; padding: 2px; border: 1px solid;">    </th>
+                <th style="width:20%; text-align:left; padding: 2px; border: 1px solid;">Present (simple)</th>
+                <th style="width:20%; text-align:left; padding: 2px; border: 1px solid;">Future (simple)</th>
+                <th style="width:20%; text-align:left; padding: 2px; border: 1px solid;">Past (aorist)</th>
+                <th style="width:20%; text-align:left; padding: 2px; border: 1px solid;">Past (imperf.)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">εγω</td>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">νομίζω</td>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">θα νομίσω</td>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">νόμισα</td>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">νόμιζα</td></tr><tr>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">εσυ</td>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">νομίζεις</td>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">θα νομίσεις</td>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">νόμισες</td>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">νόμιζες</td></tr><tr>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">αυτ(ος/ή/ό)</td>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">νομίζει</td>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">θα νομίσει</td>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">νόμισε</td>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">νόμιζε</td></tr><tr>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">εμείς</td>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">νομίζουμε</td>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">θα νομίσουμε</td>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">νομίσαμε</td>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">νομίζαμε</td></tr><tr>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">εσείς</td>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">νομίζετε</td>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">θα νομίσετε</td>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">νομίσατε</td>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">νομίζατε</td></tr><tr>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">αυτ(οί/ές/ά)</td>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">νομίζουν</td>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">θα νομίσουν</td>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">νόμισαν</td>
+                <td style="width: 20%; padding: 2px; border: 1px solid;">νόμιζαν</td>
+            </tr>
+        </tbody>
+    </table>
+    <br>
+    <table class="table_class_basic_full_width" style="font-size: 85%; width: 100%; border-collapse: collapse; border: 1px solid;">
+        <thead>
+            <tr>
+                <th style="width:33%; text-align:left; padding: 2px; border: 1px solid;">    </th>
 
-    Front
-    =====
-    νομίζω
-
-    Back
-    ====
-    | Present (simple) | Future (simple) | Past (aorist) | Past (imperf.)
-    εγω | νομίζω | θα νομίσω | νόμισα | νόμιζα
-    εσυ | νομίζεις | θα νομίσεις | νόμισες | νόμιζες
-    αυτ(ος/ή/ό) | νομίζει | θα νομίσει | νόμισε | νόμιζε
-    εμείς | νομίζουμε | θα νομίσουμε | νομίσαμε | νομίζαμε
-    εσείς | νομίζετε | θα νομίσετε | νομίσατε | νομίζατε
-    αυτ(οί/ές/ά) | νομίζουν | θα νομίσουν | νόμισαν | νόμιζαν
-
-    | Imperative (imperf. mood) | Imperative (perf. mood)
-    εσυ | νόμιζε | νόμισε
-    εσείς | νομίζετε | νομίσετε
+                <th style="width:33%; text-align:left; padding: 2px; border: 1px solid;">Imperative (imperf. mood)</th>
+                <th style="width:33%; text-align:left; padding: 2px; border: 1px solid;">Imperative (perf. mood)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="width: 33%; padding: 2px; border: 1px solid;">εσυ</td>
+                <td style="width: 33%; padding: 2px; border: 1px solid;">νόμιζε</td>
+                <td style="width: 33%; padding: 2px; border: 1px solid;">νόμισε</td>
+            </tr>
+            <tr>
+                <td style="width: 33%; padding: 2px; border: 1px solid;">εσείς</td>
+                <td style="width: 33%; padding: 2px; border: 1px solid;">νομίζετε</td>
+                <td style="width: 33%; padding: 2px; border: 1px solid;">νομίσετε</td>
+            </tr>
+        </tbody>
+        
+        ...plus another HTML table with sample usages and their English translations
 
 When pasted into Anki, it'll look like this:
 
