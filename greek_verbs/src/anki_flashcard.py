@@ -27,18 +27,16 @@ def conjugation_to_html(verb: str, conj: dict) -> str:
     return html_template
 
 
-def format_example_usages(conj: dict, example_usages: dict, num_examples) -> str:
+def format_example_usages(conj: dict, example_usages: dict, num_examples: int) -> str:
     """
     Extract example usages from the conjugation and format them for
     an Anki flashcard. The input is a dictionary with key:value pairs
     of Greek:English for each example usage.
     """
     if len(example_usages):
-
         template = '{greek}<br><em>{english}</em>'
 
         usages = []
-
         for i, (greek, english) in enumerate(example_usages.items()):
             if i == num_examples: break
             clean_usage = lambda x: x.replace('#', '').strip().strip('-').strip().strip('"').strip()
