@@ -27,17 +27,20 @@ def conjugation_to_html(verb: str, conj: dict) -> str:
     return html_template
 
 
-def format_example_usages(conj: dict, example_usages: dict) -> str:
+def format_example_usages(conj: dict, example_usages: dict, num_examples) -> str:
     """
     Extract example usages from the conjugation and format them for
     an Anki flashcard. The input is a dictionary with key:value pairs
     of Greek:English for each example usage.
     """
     if len(example_usages):
+
         template = '{greek}<br><em>{english}</em>'
 
         usages = []
-        for greek, english in example_usages.items():
+
+        for i, (greek, english) in enumerate(example_usages.items()): # greek, english in example_usages.items():
+            if i == num_examples: break
             clean_usage = lambda x: x.replace('#', '').strip().strip('-').strip().strip('"').strip()
 
             greek = clean_usage(greek)
@@ -59,9 +62,12 @@ def format_example_usages(conj: dict, example_usages: dict) -> str:
               help='Verb to prepare flashcard for.')
 @click.option('--conjugations-json', type=str, default=join(dirname(dirname(dirname(__file__))), 'verb_conjugations.json'),
               help='Path to conjugations JSON file.')
+@click.option('--num-examples', type=int, default=None,
+              help='Configurable number to limit the number of examples displayed')
+
 
 @click.command()
-def anki_flashcard(verb: str, conjugations_json: str) -> None:
+def anki_flashcard(verb: str, conjugations_json: str, num_examples: int) -> None:
     """
     Build Anki flashcard for a given verb.
     """
@@ -71,7 +77,7 @@ def anki_flashcard(verb: str, conjugations_json: str) -> None:
     verb = verb.lower()
     if verb in verb_conjugations:
         conjugation_table_str = conjugation_to_html(verb, verb_conjugations[verb]['conjugation'])
-        example_usage_str = format_example_usages(verb_conjugations[verb]['conjugation'], verb_conjugations[verb]['example_usages'])
+        example_usage_str = format_example_usages(verb_conjugations[verb]['conjugation'], verb_conjugations[verb]['example_usages'], num_examples)
 
         anki_flashcard_str = verb
         anki_flashcard_str += '<br><br>'
