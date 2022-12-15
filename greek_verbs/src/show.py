@@ -94,24 +94,30 @@ def print_imperative_table(conjugation: dict) -> str:
         )
 
 
-def print_example_usages(example_usages: dict) -> None:
+def print_example_usages(example_usages: dict, num_examples: int) -> None:
     """
     Print example usages if present.
     """
     if len(example_usages):
+        counter = 0
         for greek, english in example_usages.items():
+            if counter == num_examples: break
             print()
             print(f'Ελλήνικα: {greek}\nEnglish: {english}')
+            counter += 1
+
 
 
 @click.option('--verb', type=str, required=True, multiple=True,
               help='Verb to search for and display.')
 @click.option('--conjugations-json', type=str, default=join(dirname(dirname(dirname(__file__))), 'verb_conjugations.json'),
               help='Path to conjugations JSON file.')
+@click.option('--num-examples', type=int, default=None,
+              help='Configurable number to limit the number of examples displayed')
 
 
 @click.command()
-def show(verb: tuple, conjugations_json: str) -> None:
+def show(verb: tuple, conjugations_json: str, num_examples: int) -> None:
     """
     Print a given verb to the console.
     """
@@ -126,7 +132,7 @@ def show(verb: tuple, conjugations_json: str) -> None:
             conjugation = verb_info['conjugation']
             print_conjugation_table(conjugation)
             print_imperative_table(conjugation)
-            print_example_usages(verb_info['example_usages'])
+            print_example_usages(verb_info['example_usages'], num_examples)
 
         else:
             raise KeyError(f'Verb "{verb_name}" not found in conjugations JSON file.')
