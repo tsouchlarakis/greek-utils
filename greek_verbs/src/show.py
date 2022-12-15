@@ -99,13 +99,10 @@ def print_example_usages(example_usages: dict, num_examples: int) -> None:
     Print example usages if present.
     """
     if len(example_usages):
-        counter = 0
-        for greek, english in example_usages.items():
-            if counter == num_examples: break
+        for i, (greek, english) in enumerate(example_usages.items()):
+            if i == num_examples: break
             print()
             print(f'Ελλήνικα: {greek}\nEnglish: {english}')
-            counter += 1
-
 
 
 @click.option('--verb', type=str, required=True, multiple=True,

@@ -39,7 +39,7 @@ def format_example_usages(conj: dict, example_usages: dict, num_examples) -> str
 
         usages = []
 
-        for i, (greek, english) in enumerate(example_usages.items()): # greek, english in example_usages.items():
+        for i, (greek, english) in enumerate(example_usages.items()):
             if i == num_examples: break
             clean_usage = lambda x: x.replace('#', '').strip().strip('-').strip().strip('"').strip()
 
