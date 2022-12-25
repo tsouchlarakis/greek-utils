@@ -8,7 +8,7 @@ import random
 import requests
 from bs4 import BeautifulSoup
 from os import listdir, makedirs
-from os.path import splitext, join, dirname, basename, isdir, expanduser
+from os.path import splitext, join, dirname, basename, isdir, expanduser, isfile
 from send2trash import send2trash
 from tqdm import tqdm
 
@@ -103,6 +103,17 @@ def get_example_usages(base_url: str, verb: str) -> dict:
         return {}
 
 
+def read_verb_data_json(json_output_fpath: str) -> dict:
+    """
+    Read the output JSON file as a python dictionary.
+    """
+    with open(json_output_fpath, 'r') as f:
+        file_content = f.read()
+        inprogress_verb_data = json.loads('{}' if file_content == '' else file_content)
+
+    return inprogress_verb_data
+
+
 @click.option('--json-output-fpath', type=str, default=join(expanduser('~'), 'Desktop', 'verb_conjugations.json'),
               help='Desired path to output JSON file.')
 
@@ -119,25 +130,31 @@ def scrape_conjugations(json_output_fpath: str) -> None:
         full_verb_list = f.read().splitlines()
 
     # Create temporary directory if not exists, remove it and re-create if it does
-    if isdir(tmp_verb_data_dpath):
-        send2trash(tmp_verb_data_dpath)
+    # if isdir(tmp_verb_data_dpath):
+    #     send2trash(tmp_verb_data_dpath)
 
-    if not isdir(tmp_verb_data_dpath):
-        makedirs(tmp_verb_data_dpath)
+    # if not isdir(tmp_verb_data_dpath):
+    #     makedirs(tmp_verb_data_dpath)
 
     # Load list of verbs already scraped and saved to disk as Pickle files
-    already_done = [splitext(f)[0] for f in listdir(tmp_verb_data_dpath) if 'DS_Store' not in f]
+    # already_done = [splitext(f)[0] for f in listdir(tmp_verb_data_dpath) if 'DS_Store' not in f]
+    if not isfile(json_output_fpath):
+        open(json_output_fpath, 'w+')
 
     # Filter list of verbs to scrape to only those not already scraped, and shuffle randomly
+    inprogress_verb_data = read_verb_data_json(json_output_fpath)
+    already_done = inprogress_verb_data.keys()
     scrape_verb_list = [x for x in full_verb_list if x not in already_done]
-    random.shuffle(scrape_verb_list)
+    # random.shuffle(scrape_verb_list)
 
     # Initialize progress bar
     pbar = tqdm(scrape_verb_list)
 
     # Scrape each verb and dump each to a temporary .pkl file
     for verb in pbar:
-        already_done = [splitext(f)[0] for f in listdir(tmp_verb_data_dpath)]
+        inprogress_verb_data = read_verb_data_json(json_output_fpath)
+        already_done = inprogress_verb_data.keys()
+
         if verb not in already_done:
             pbar.set_description(verb)
 
@@ -145,23 +162,27 @@ def scrape_conjugations(json_output_fpath: str) -> None:
             verb_data['conjugation'] = get_conjugation(base_url, verb)
             verb_data['example_usages'] = get_example_usages(base_url, verb)
 
-            save_fpath = join(tmp_verb_data_dpath, verb + '.pkl')
-            with open(save_fpath, 'wb') as f:
-                cPickle.dump(verb_data, f)
+            with open(json_output_fpath, 'w') as f:
+                inprogress_verb_data[verb] = verb_data
+                json.dump(inprogress_verb_data, f, indent=4, ensure_ascii=False)
+
+            # save_fpath = join(tmp_verb_data_dpath, verb + '.pkl')
+            # with open(save_fpath, 'wb') as f:
+            #     cPickle.dump(verb_data, f)
 
     # Load all temporary .pkl files and consolidate all verb data into a single JSON dictionary
-    scraped_verb_fpaths = sorted([join(tmp_verb_data_dpath, f) for f in listdir(tmp_verb_data_dpath) if 'DS_Store' not in f])
-    all_verb_data = {}
-    for verb_fpath in tqdm(scraped_verb_fpaths):
-        verb_name = splitext(basename(verb_fpath))[0]
-        with open(verb_fpath, 'rb') as f:
-            all_verb_data[verb_name] = cPickle.load(f)
+    # scraped_verb_fpaths = sorted([join(tmp_verb_data_dpath, f) for f in listdir(tmp_verb_data_dpath) if 'DS_Store' not in f])
+    # all_verb_data = {}
+    # for verb_fpath in tqdm(scraped_verb_fpaths):
+    #     verb_name = splitext(basename(verb_fpath))[0]
+    #     with open(verb_fpath, 'rb') as f:
+    #         all_verb_data[verb_name] = cPickle.load(f)
 
-    # Save dictionary `all_verb_data` to disk as JSON`
-    with open(json_output_fpath, 'w') as f:
-        json.dump(all_verb_data, f, ensure_ascii=False)
-        print(f'Verb conjugations outputted to: {json_output_fpath}')
+    # # Save dictionary `all_verb_data` to disk as JSON`
+    # with open(json_output_fpath, 'w') as f:
+    #     json.dump(all_verb_data, f, ensure_ascii=False)
+    #     print(f'Verb conjugations outputted to: {json_output_fpath}')
 
-    # Remove temporary directory
-    if isdir(tmp_verb_data_dpath):
-        send2trash(tmp_verb_data_dpath)
+    # # Remove temporary directory
+    # if isdir(tmp_verb_data_dpath):
+    #     send2trash(tmp_verb_data_dpath)
