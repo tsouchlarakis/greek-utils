@@ -1,5 +1,5 @@
 ===========
-greek-verbs
+greek-utils
 ===========
 
 Programmable interface to Cooljugator's Modern Greek verb database.
@@ -16,11 +16,11 @@ Prerequisites
 
 .. code-block:: bash
 
-    git clone git@github.com:tsouchlarakis/greek-verbs.git
-    rmvirtualenv greek-verbs  # Only if using virtualenvwrapper to manage virtualenvs
-    mkvirtualenv greek-verbs
-    workon greek-verbs
-    cd greek-verbs
+    git clone git@github.com:tsouchlarakis/greek-utils.git
+    rmvirtualenv greek-utils  # Only if using virtualenvwrapper to manage virtualenvs
+    mkvirtualenv greek-utils
+    workon greek-utils
+    cd greek-utils
     pip install -r requirements.txt
     pip install -e .
 
@@ -31,13 +31,13 @@ Usage
 
 .. code-block:: bash
 
-    $ greek-verbs scrape-conjugations --json-output-fpath ~/Desktop/verb_conjugations.json
+    $ greek-utils scrape-conjugations --json-output-fpath ~/Desktop/verb_conjugations.json
 
 **Show data for a given verb or verbs**:
 
 .. code-block:: bash
 
-    $ greek-verbs show --verb νομίζω  # Can add an arbitrary number of verbs with --verb verb2 --verb verb3 ...
+    $ greek-utils show --verb νομίζω  # Can add an arbitrary number of verbs with --verb verb2 --verb verb3 ...
 
     +----------------+---------------+-------------+----------------+
     | Present Simple | Future Simple | Past Aorist | Past Imperfect |
@@ -72,7 +72,7 @@ Usage
 
 .. code-block:: bash
 
-    $ greek-verbs anki-flashcard --verb νομίζω
+    $ greek-utils anki-flashcard --verb νομίζω
     νομίζω<br><br><table class="table_class_basic_full_width" style="font-size: 85%; width: 100%; border-collapse: collapse; border: 1px solid;">
         <thead>
             <tr>

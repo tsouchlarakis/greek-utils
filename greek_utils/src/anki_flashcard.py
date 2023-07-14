@@ -2,7 +2,7 @@ import click
 import json
 import logging
 from os.path import join, dirname
-from greek_verbs.src.helpers import logger_setup
+from greek_utils.src.helpers import logger_setup
 
 class Attribute():
     pass

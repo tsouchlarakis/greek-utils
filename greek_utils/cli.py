@@ -7,7 +7,7 @@ from .src.anki_flashcard import anki_flashcard
 @click.group()
 def cli():
     """
-    Command line interface for greek-verbs.
+    Command line interface for greek-utils.
     """
     pass
 
