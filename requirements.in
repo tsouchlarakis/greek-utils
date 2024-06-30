@@ -1,6 +1,8 @@
-click
+click==8.1.2
 bs4
-tqdm
-send2trash
-requests
-termtables
+tqdm==4.64.0
+send2trash==1.8.0
+requests==2.27.1
+termtables==0.2.4
+pyperclip==1.9.0
+pandas==2.2.2

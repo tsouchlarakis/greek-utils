@@ -1,0 +1,60 @@
+[project]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    'Programming Language :: Python :: 3.9',
+    'Programming Language :: Python :: 3.10',
+]
+dynamic = ["readme", "dependencies", "optional-dependencies"]
+requires-python = ">=3.6"
+
+[project.license]
+text = "MIT"
+
+[project.urls]
+homepage = "https://github.com/tsouchlarakis/greek-utils"
+
+[tool.poetry]
+name = "greek-utils"
+version = "1.0.0"
+description = "Python utilities to automate Greek language learning tasks."
+authors = [
+    "Andoni Sooklaris <andoni.sooklaris@gmail.com>",
+]
+
+[[tool.poetry.packages]]
+include = "greek_utils"
+
+[tool.poetry.scripts]
+greek-utils = "cli:main"
+
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+
+[tool.setuptools.dynamic]
+readme = { file = "README.md" }
+dependencies = { file = ["requirements.txt"] }
+
+[tool.setuptools.packages.find]
+where = ["greek_utils"]
+
+[tool.isort]
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+profile = "black"
+line_length = 100
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+known_standard_library = ["click"]
+
+[tool.coverage.run]
+omit = [
+]
+parallel = false
