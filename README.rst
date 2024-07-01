@@ -145,7 +145,7 @@ Usage
 
 When pasted into Anki, it'll look like this:
 
-.. image:: graphics/anki_flashcard_example.png
+.. image:: graphics/verb_flashcard_example.png
 
 **Note**: Install the `Anki Table add-on <https://ankiweb.net/shared/info/1237621971>`_ so Anki can render the table within the card correctly.
 

@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
 
 
-import _pickle as cPickle
 import click
+
+import _pickle as cPickle
 import json
 import random
 import requests
 from bs4 import BeautifulSoup
 from os import listdir, makedirs
-from os.path import splitext, join, dirname, basename, isdir, expanduser
+from os.path import basename, dirname, expanduser, isdir, join, splitext
 from send2trash import send2trash
 from tqdm import tqdm
-
 
 base_url = 'https://cooljugator.com/gr'
 tmp_verb_data_dpath = join(dirname(__file__), '.tmp_verb_data')
@@ -115,7 +115,7 @@ def scrape_conjugations(json_output_fpath: str) -> None:
     assert splitext(json_output_fpath)[1] == '.json', 'Output file must be a JSON file.'
 
     # Get universe of verbs to scrape
-    with open(join(dirname(__file__),  'verb_list.txt'), 'r') as f:
+    with open(join(dirname(dirname(__file__)), 'data',  'verb_list.txt'), 'r') as f:
         full_verb_list = f.read().splitlines()
 
     # Create temporary directory if not exists, remove it and re-create if it does

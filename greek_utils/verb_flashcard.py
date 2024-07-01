@@ -1,8 +1,11 @@
 import click
+
 import json
 import logging
-from os.path import join, dirname
-from greek_utils.src.helpers import logger_setup
+from os.path import dirname, join
+
+from greek_utils.helpers import logger_setup
+
 
 class Attribute():
     pass
@@ -23,7 +26,7 @@ def conjugation_to_html(conj: dict, logger: logging.Logger) -> str:
     conj = vars
     del vars
 
-    with open(join(dirname(__file__), 'anki_flashcard_template.html'), 'r') as f:
+    with open(join(dirname(__file__), 'templates', 'verb_flashcard_template.html'), 'r') as f:
         html_template = f.read()
         html_template = html_template.format(**locals())
 
@@ -81,12 +84,12 @@ def format_example_usages(conj: dict, example_usages: dict, num_examples: int, l
               help='Enable verbose debug logging.')
 
 @click.command()
-def anki_flashcard(verb: str, conjugations_json: str, num_examples: int, debug: bool) -> None:
+def verb_flashcard(verb: str, conjugations_json: str, num_examples: int, debug: bool) -> None:
     """
     Build Anki flashcard for a given verb.
     """
     logging_level = logging.DEBUG if debug else logging.ERROR
-    logger = logger_setup(name='anki_flashcard', level=logging_level)
+    logger = logger_setup(name='verb_flashcard', level=logging_level)
     logger.debug(f"Creating Anki flashcard for '{verb}'")
 
     with open(conjugations_json, 'r') as f:
@@ -108,15 +111,15 @@ def anki_flashcard(verb: str, conjugations_json: str, num_examples: int, debug: 
 
         logger.debug('Assembling flashcard')
 
-        anki_flashcard_str = verb
-        anki_flashcard_str += '<br><br>'
-        anki_flashcard_str+= conjugation_table_str
+        verb_flashcard_str = verb
+        verb_flashcard_str += '<br><br>'
+        verb_flashcard_str+= conjugation_table_str
 
         if len(example_usage_str) > 0:
-            anki_flashcard_str += '<br>'
-            anki_flashcard_str += example_usage_str
+            verb_flashcard_str += '<br>'
+            verb_flashcard_str += example_usage_str
 
-        print(f'{anki_flashcard_str}')
+        print(f'{verb_flashcard_str}')
         logger.debug('Flashcard assembled')
     else:
         print(f"No such verb found '{verb}'!")
