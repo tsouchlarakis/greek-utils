@@ -2,6 +2,7 @@ import click
 
 import json
 import logging
+import pyperclip
 from os.path import dirname, join
 
 from greek_utils.helpers import logger_setup
@@ -76,7 +77,7 @@ def format_example_usages(conj: dict, example_usages: dict, num_examples: int, l
 
 @click.option('--verb', type=str, required=True,
               help='Verb to prepare flashcard for.')
-@click.option('--conjugations-json', type=str, default=join(dirname(dirname(dirname(__file__))), 'verb_conjugations.json'),
+@click.option('--conjugations-json', type=str, default=join(dirname(dirname(__file__)), 'verb_conjugations.json'),
               help='Path to conjugations JSON file.')
 @click.option('--num-examples', type=int, default=None,
               help='Configurable number to limit the number of examples displayed')
@@ -119,7 +120,8 @@ def verb_flashcard(verb: str, conjugations_json: str, num_examples: int, debug: 
             verb_flashcard_str += '<br>'
             verb_flashcard_str += example_usage_str
 
-        print(f'{verb_flashcard_str}')
+        pyperclip.copy(verb_flashcard_str)
+        print('Flashcard copied to clipboard!')
         logger.debug('Flashcard assembled')
     else:
         print(f"No such verb found '{verb}'!")
