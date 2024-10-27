@@ -1,4 +1,10 @@
 [project]
+name = "greek-utils"
+version = "1.0.0"
+description = "Python utilities to automate Greek language learning tasks."
+authors = [
+    {name = "Andoni Sooklaris", email = "andoni.sooklaris@gmail.com"},
+]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
     "Intended Audience :: Developers",
@@ -9,10 +15,9 @@ classifiers = [
     "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     'Programming Language :: Python :: 3.9',
-    'Programming Language :: Python :: 3.10',
 ]
 dynamic = ["readme", "dependencies", "optional-dependencies"]
-requires-python = ">=3.6"
+requires-python = ">=3.0,<3.10"
 
 [project.license]
 text = "MIT"
@@ -20,29 +25,23 @@ text = "MIT"
 [project.urls]
 homepage = "https://github.com/tsouchlarakis/greek-utils"
 
-[tool.poetry]
-name = "greek-utils"
-version = "1.0.0"
-description = "Python utilities to automate Greek language learning tasks."
-authors = [
-    "Andoni Sooklaris <andoni.sooklaris@gmail.com>",
-]
-
-[[tool.poetry.packages]]
-include = "greek_utils"
-
-[tool.poetry.scripts]
-greek-utils = "cli:main"
-
 [build-system]
 requires = ["setuptools>=64", "wheel"]
+build-backend = 'setuptools.build_meta'
+
+[tool.setuptools]
+include-package-data = true
 
 [tool.setuptools.dynamic]
 readme = { file = "README.md" }
 dependencies = { file = ["requirements.txt"] }
 
 [tool.setuptools.packages.find]
-where = ["greek_utils"]
+where = ["."]
+include = ["greek_utils*"]
+
+[project.scripts]
+greek-utils = "greek_utils.cli:main"
 
 [tool.isort]
 multi_line_output = 3
@@ -55,6 +54,5 @@ sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
 known_standard_library = ["click"]
 
 [tool.coverage.run]
-omit = [
-]
+omit = []
 parallel = false
