@@ -23,5 +23,13 @@
             "console": "integratedTerminal",
             "justMyCode": true
         },
+        {
+            "name": "verb-flashcard",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "/Users/Andoni/git-doni/greek-utils/debug/debug_verb_flashcard.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
     ]
 }

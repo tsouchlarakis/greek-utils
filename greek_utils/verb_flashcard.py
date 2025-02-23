@@ -3,6 +3,7 @@ import click
 import json
 import logging
 import pyperclip
+import re
 from os.path import dirname, join
 
 from greek_utils.helpers import logger_setup
@@ -61,10 +62,12 @@ def format_example_usages(conj: dict, example_usages: dict, num_examples: int, l
             usage = template.format(greek=greek, english=english)
             logger.debug(f'Sample usage "{usage}"', indent=1)
 
-            verb_inflections = list(set([x for x in conj.values() if x > '']))
+            verb_inflections = sorted(list(set([x for x in conj.values() if x > ''])), key=lambda x: (-len(x), x))
             for inflection in verb_inflections:
-                logger.debug(f'Bolding "{inflection}" in usage', indent=1)
-                usage = usage.replace(inflection, f'<b>{inflection}</b>')
+                m = re.search(rf'(?<!>)\b{inflection}\b(?!<)', usage)
+                if m:
+                    logger.debug(f'Bolding "{inflection}" in usage', indent=1)
+                    usage = usage[:m.start()] + f'<b>{inflection}</b>' + usage[m.end():]
 
             usages.append(usage)
 

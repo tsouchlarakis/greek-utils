@@ -1,9 +1,9 @@
 [project]
 name = "greek-utils"
-version = "1.0.0"
-description = "Python utilities to automate Greek language learning tasks."
+version = "1.1.0"
+description = "Automate Modern Greek language learning tasks."
 authors = [
-    {name = "Andoni Sooklaris", email = "andoni.sooklaris@gmail.com"},
+    {name = "Andoni Tsouchlarakis", email = "andoni.tsouchlarakis@gmail.com"},
 ]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",

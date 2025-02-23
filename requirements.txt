@@ -4,17 +4,17 @@
 #
 #    pip-compile requirements.in
 #
-beautifulsoup4==4.11.1
+beautifulsoup4==4.12.3
     # via bs4
-bs4==0.0.1
+bs4==0.0.2
     # via -r requirements.in
-certifi==2022.9.24
+certifi==2024.8.30
     # via requests
 charset-normalizer==2.0.12
     # via requests
 click==8.1.2
     # via -r requirements.in
-idna==3.4
+idna==3.10
     # via requests
 numpy==2.0.2
     # via pandas
@@ -32,7 +32,7 @@ send2trash==1.8.0
     # via -r requirements.in
 six==1.16.0
     # via python-dateutil
-soupsieve==2.3.2.post1
+soupsieve==2.6
     # via beautifulsoup4
 termtables==0.2.4
     # via -r requirements.in
@@ -40,5 +40,5 @@ tqdm==4.64.0
     # via -r requirements.in
 tzdata==2024.2
     # via pandas
-urllib3==1.26.13
+urllib3==1.26.20
     # via requests
