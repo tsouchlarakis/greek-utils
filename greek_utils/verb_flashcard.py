@@ -84,11 +84,13 @@ def format_example_usages(conj: dict, example_usages: dict, num_examples: int, l
               help='Path to conjugations JSON file.')
 @click.option('--num-examples', type=int, default=None,
               help='Configurable number to limit the number of examples displayed')
+@click.option('--stdout', is_flag=True, default=False,
+              help='Print the flashcard to stdout instead of copying it to the clipboard.')
 @click.option('--debug', is_flag=True, default=False,
               help='Enable verbose debug logging.')
 
 @click.command()
-def verb_flashcard(verb: str, conjugations_json: str, num_examples: int, debug: bool) -> None:
+def verb_flashcard(verb: str, conjugations_json: str, num_examples: int, stdout: bool, debug: bool) -> None:
     """
     Build Anki flashcard for a given verb.
     """
@@ -123,8 +125,11 @@ def verb_flashcard(verb: str, conjugations_json: str, num_examples: int, debug: 
             verb_flashcard_str += '<br>'
             verb_flashcard_str += example_usage_str
 
-        pyperclip.copy(verb_flashcard_str)
-        print('Flashcard copied to clipboard!')
+        if stdout:
+            print(verb_flashcard_str)
+        else:
+            pyperclip.copy(verb_flashcard_str)
+            print('Flashcard copied to clipboard!')
         logger.debug('Flashcard assembled')
     else:
         print(f"No such verb found '{verb}'!")

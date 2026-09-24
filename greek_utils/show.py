@@ -107,7 +107,7 @@ def print_example_usages(example_usages: dict, num_examples: int) -> None:
 
 @click.option('--verb', type=str, required=True, multiple=True,
               help='Verb to search for and display.')
-@click.option('--conjugations-json', type=str, default=join(dirname(dirname(dirname(__file__))), 'verb_conjugations.json'),
+@click.option('--conjugations-json', type=str, default=join(dirname(dirname(__file__)), 'verb_conjugations.json'),
               help='Path to conjugations JSON file.')
 @click.option('--num-examples', type=int, default=None,
               help='Configurable number to limit the number of examples displayed')
@@ -132,4 +132,4 @@ def show(verb: tuple, conjugations_json: str, num_examples: int) -> None:
             print_example_usages(verb_info['example_usages'], num_examples)
 
         else:
-            raise KeyError(f'Verb "{verb_name}" not found in conjugations JSON file.')
+            print(f"No such verb found '{verb_name}'!")
