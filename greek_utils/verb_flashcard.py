@@ -4,7 +4,11 @@ import json
 import logging
 import pyperclip
 import re
+import urllib.parse
 from os.path import dirname, join
+
+import requests
+from bs4 import BeautifulSoup
 
 from greek_utils.helpers import logger_setup
 
@@ -78,6 +82,43 @@ def format_example_usages(conj: dict, example_usages: dict, num_examples: int, l
         logger.debug('No example usages found')
         return ''
 
+def scrape_glosbe_translation(word: str) -> list:
+    """
+    Scrape glosbe.com for English translations of a Greek word. Returns a list
+    of translation strings (empty list if none found).
+
+    NOTE: requests/bs4/urllib.parse are imported at module top (not inside this
+    function) because greek_utils.helpers.logger_setup() installs a global
+    ExtendedLogger class; importing urllib3 after that makes its internal
+    log.debug() calls crash inside _build_message().
+    """
+    url = f'https://glosbe.com/el/en/{urllib.parse.quote(word)}'
+    resp = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+    if resp.status_code != 200:
+        return []
+    soup = BeautifulSoup(resp.content, 'html.parser')
+
+    # Verified page structure (2026-09-23): the ranked translations are the text
+    # of <h3> tags that appear between the <h2>Greek-English dictionary</h2>
+    # heading and the NEXT <h2> tag. Other h3/h2 sections on the page (example
+    # sentences, phrases, automatic translations) are not translations and must
+    # be excluded by only collecting h3 tags in that specific window.
+    headings = soup.find_all(['h2', 'h3'])
+    translations = []
+    in_section = False
+    for tag in headings:
+        if tag.name == 'h2':
+            if in_section:
+                break  # left the Greek-English dictionary section
+            if tag.get_text(strip=True) == 'Greek-English dictionary':
+                in_section = True
+        elif tag.name == 'h3' and in_section:
+            text = tag.get_text(strip=True)
+            if text:
+                translations.append(text)
+    return translations
+
+
 @click.option('--verb', type=str, required=True,
               help='Verb to prepare flashcard for.')
 @click.option('--conjugations-json', type=str, default=join(dirname(dirname(__file__)), 'verb_conjugations.json'),
@@ -132,4 +173,14 @@ def verb_flashcard(verb: str, conjugations_json: str, num_examples: int, stdout:
             print('Flashcard copied to clipboard!')
         logger.debug('Flashcard assembled')
     else:
-        print(f"No such verb found '{verb}'!")
+        translations = scrape_glosbe_translation(verb)
+        if translations:
+            print(f"'{verb}' not found in conjugations JSON -- used Glosbe translations instead.")
+            glosbe_flashcard_str = f'{verb}<br><br>' + ', '.join(translations[:5])
+            if stdout:
+                print(glosbe_flashcard_str)
+            else:
+                pyperclip.copy(glosbe_flashcard_str)
+                print('Flashcard copied to clipboard!')
+        else:
+            print(f"No such verb found '{verb}'!")
