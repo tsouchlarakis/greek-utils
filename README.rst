@@ -9,20 +9,16 @@ Installation
 
 Prerequisites
 
-- Python 3.6+
-- ``pip``
+- Python 3.12+
+- `uv <https://docs.astral.sh/uv/>`_
 - `Anki Table add-on <https://ankiweb.net/shared/info/1237621971>`_ (so Anki can render the table within the card correctly)
-- (optional) ``virtualenvwrapper``
 
 .. code-block:: bash
 
     git clone git@github.com:tsouchlarakis/greek-utils.git
-    rmvirtualenv greek-utils  # Only if using virtualenvwrapper to manage virtualenvs
-    mkvirtualenv greek-utils
-    workon greek-utils
     cd greek-utils
-    pip install -r requirements.txt
-    pip install -e .
+    uv sync  # creates .venv from pyproject.toml + uv.lock
+    .venv/bin/greek-utils --help
 
 Usage
 -----
