@@ -467,6 +467,28 @@ def test_a_dictionary_lemma_is_not_overridden_by_a_prefix_match():
     assert v.lookup('κατοικιδίου').lemma == 'κατοικίδιο'
 
 
+def test_a_dictionary_proper_name_opening_a_sentence_is_still_checked(article, adapted):
+    records = [json.loads(line) for line in KAIKKI.read_text(encoding='utf-8').splitlines() if line.strip()]
+    records.append({'word': 'Μανωλάκης', 'lang_code': 'el', 'pos': 'name',
+                    'senses': [{'glosses': ['a male surname']}]})
+    v = Vocabulary.from_file(VOCAB, lemmatizer=KaikkiDictionary(records))
+    targets = select_targets(v, article.text)
+    report = check_adaptation(adapted.replace('Φέτος η σοδειά', 'Μανωλάκης, η σοδειά'),
+                              article.text, targets, v)
+    assert [r.name for r in report.results if not r.passed] == ['names'], report.failures()
+    # An ordinary word the dictionary knows still opens a sentence freely.
+    assert check_adaptation('Λαούτο έπαιξαν.', 'Έπαιξαν λαούτο.', [], v).get('names').passed
+
+
+def test_a_lemmatizer_that_cannot_tell_names_does_not_exempt_them():
+    class Dict:
+        def candidates(self, word):
+            return ['Μανωλάκης'] if fold(word) == fold('Μανωλάκης') else []
+
+    v = Vocabulary(lemmatizer=Dict())
+    assert not check_adaptation('Μανωλάκης ήρθε.', 'Ήρθε κάποιος.', [], v).get('names').passed
+
+
 def test_ambiguous_ordinals_warn_without_failing(vocabulary):
     report = check_adaptation('Ήρθε για πρώτη φορά.', 'Ήρθε ξανά.', [], vocabulary)
     numbers = report.get('numbers')

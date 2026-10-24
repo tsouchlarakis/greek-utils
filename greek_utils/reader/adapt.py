@@ -135,7 +135,9 @@ def _is_name_candidate(tok, info, vocabulary: Vocabulary) -> bool:
     A token that must come from the source because it is a proper name. Learner-state
     annotation does not decide this: a capitalized word in mid-sentence is a name even
     if its letters resemble a listed word, and a sentence-initial one is a name unless
-    it is a word the learner list, frequent list or dictionary knows.
+    the learner list, frequent list or dictionary knows it as an ordinary word. A
+    dictionary's proper names (Μανωλάκης) are no evidence that the name is in the
+    article, so they are still checked against the source.
     """
     if info.state in (FUNCTION, NUMBER):
         return False
@@ -143,7 +145,7 @@ def _is_name_candidate(tok, info, vocabulary: Vocabulary) -> bool:
         return True
     if not tok.capitalized:
         return False
-    return not tok.initial or not vocabulary.is_known_form(tok.text)
+    return not tok.initial or not vocabulary.is_ordinary_word(tok.text)
 
 
 def _body(text: str) -> str:

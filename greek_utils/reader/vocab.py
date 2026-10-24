@@ -98,7 +98,12 @@ def headword_from_card_field(field_html: str) -> str:
 
 
 class Lemmatizer(Protocol):
-    """Anything that can propose lemmas for a surface form (kaikki index, spaCy...)."""
+    """
+    Anything that can propose lemmas for a surface form (kaikki index, spaCy...). It may
+    also offer ``is_lexical(word) -> bool``, true when the form belongs to an ordinary
+    word rather than only to proper names. Without it, nothing the lemmatizer knows is
+    taken as evidence that a capitalized word is not a name.
+    """
 
     def candidates(self, word: str) -> list[str]: ...
 
@@ -203,11 +208,16 @@ class Vocabulary:
             return WordInfo(lemma, 'known')
         return WordInfo(lemma, NEW)
 
-    def is_known_form(self, word: str) -> bool:
-        """True when the word is in the learner list, the frequent list or the lemmatizer."""
+    def is_ordinary_word(self, word: str) -> bool:
+        """
+        True when the learner list, the frequent list or the lemmatizer knows the word as
+        an ordinary word. A lemmatizer's proper names do not count, and a lemmatizer that
+        cannot tell names from other words counts for nothing.
+        """
         if self.lookup(word).state != NEW:
             return True
-        return self.lemmatizer is not None and bool(self.lemmatizer.candidates(word))
+        is_lexical = getattr(self.lemmatizer, 'is_lexical', None)
+        return is_lexical is not None and bool(is_lexical(word))
 
     def annotate(self, text: str) -> list[tuple[Token, WordInfo]]:
         """Every token of a text with its lemma and state."""

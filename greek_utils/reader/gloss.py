@@ -56,6 +56,7 @@ class KaikkiDictionary:
     def __init__(self, records: Iterable[dict]):
         self._entries: dict[str, list[DictEntry]] = defaultdict(list)
         self._forms: dict[str, list[str]] = defaultdict(list)
+        self._lexical: set[str] = set()  # folded forms of words that are not proper names
         for rec in records:
             if rec.get('lang_code', 'el') != 'el' or not rec.get('word'):
                 continue
@@ -71,20 +72,24 @@ class KaikkiDictionary:
                         yield json.loads(line)
         return cls(records())
 
-    def _add_form(self, form: str, lemma: str) -> None:
+    def _add_form(self, form: str, lemma: str, lexical: bool) -> None:
         key = fold(form)
         if lemma not in self._forms[key]:
             self._forms[key].append(lemma)
+        if lexical:
+            self._lexical.add(key)
 
     def _add(self, rec: dict) -> None:
         word = rec['word']
+        # Proper names are tagged pos "name"; a capitalized headword is one too.
+        lexical = rec.get('pos') != 'name' and not word[:1].isupper()
         glosses = []
         for sense in rec.get('senses', []):
             form_of = sense.get('form_of') or sense.get('alt_of')
             if form_of:
                 for target in form_of:
                     if target.get('word'):
-                        self._add_form(word, target['word'])
+                        self._add_form(word, target['word'], lexical)
                 continue
             if sense.get('glosses'):
                 glosses.append(sense['glosses'][-1])
@@ -95,14 +100,18 @@ class KaikkiDictionary:
                 glosses=tuple(glosses),
                 etymology=rec.get('etymology_text') or None,
             ))
-            self._add_form(word, word)
+            self._add_form(word, word, lexical)
             for form in rec.get('forms', []):
                 if form.get('form') and not SKIP_FORM_TAGS & set(form.get('tags', [])):
-                    self._add_form(form['form'], word)
+                    self._add_form(form['form'], word, lexical)
 
     def candidates(self, word: str) -> list[str]:
         """Headwords this form belongs to (the Lemmatizer protocol)."""
         return list(self._forms.get(fold(word), []))
+
+    def is_lexical(self, word: str) -> bool:
+        """True when the form belongs to an ordinary word, not only to proper names."""
+        return fold(word) in self._lexical
 
     def lookup(self, lemma: str) -> list[DictEntry]:
         return list(self._entries.get(fold(lemma), []))
