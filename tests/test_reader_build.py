@@ -1,6 +1,7 @@
 """Vocabulary states, targets, adaptation checks, glosses and ``reader build``, on synthetic fixtures."""
 
 import json
+import unicodedata
 from pathlib import Path
 
 import pytest
@@ -20,7 +21,7 @@ from greek_utils.reader.adapt import (
 from greek_utils.reader.article import load, parse_text
 from greek_utils.reader.build import build
 from greek_utils.reader.gloss import SOURCE_DECK, SOURCE_GLOSBE, SOURCE_WIKTIONARY, GlossResolver, KaikkiDictionary
-from greek_utils.reader.targets import select_targets
+from greek_utils.reader.targets import select_targets, targets_used
 from greek_utils.reader.text import accent_position, fold, sentences, strict, tokenize
 from greek_utils.reader.vocab import (
     FUNCTION,
@@ -348,3 +349,115 @@ def test_cli_build_with_adapter_module(tmp_path, monkeypatch):
     ])
     assert res.exit_code == 0, res.output
     assert 'origin: adapter; checks passed' in res.output
+
+
+# Review fixes (PR #13)
+
+
+def nfd(text: str) -> str:
+    return unicodedata.normalize('NFD', text)
+
+
+def test_decomposed_text_checks_the_same_as_precomposed(vocabulary, article, adapted):
+    targets = select_targets(vocabulary, article.text)
+    plain = check_adaptation(adapted, article.text, targets, vocabulary)
+    decomposed = check_adaptation(nfd(adapted), nfd(article.text), targets, vocabulary)
+    assert decomposed.passed, decomposed.failures()
+    assert decomposed.get('length').value == plain.get('length').value == 150
+    assert decomposed.get('new_ratio').value == plain.get('new_ratio').value
+    assert decomposed.get('targets').value == plain.get('targets').value
+    assert [len(tokenize(nfd(adapted)))] == [len(tokenize(adapted))]
+
+
+@pytest.mark.parametrize('edit, failing', [
+    # An unseen name opening a sentence is still a name.
+    (lambda t: t.replace('Φέτος η σοδειά', 'Μανωλάκης, η σοδειά'), ['names']),
+    # A surname that merely starts with a source adjective is not the source name.
+    (lambda t: t.replace('Νίκος Παπαδάκης', 'Νίκος Παραδοσιακόπουλος'), ['names']),
+    # The title is held to the same factual checks as the body.
+    (lambda t: t.replace('Η γιορτή του κάστανου', 'Ο Μανωλάκης κέρδισε 999 ευρώ σήμερα', 1),
+     ['numbers', 'names']),
+    # A quantity rewritten in words is not verified.
+    (lambda t: t.replace('850 μέτρα', 'χίλια μέτρα'), ['numbers']),
+    (lambda t: t.replace('850 μέτρα', 'οκτακόσια πενήντα μέτρα'), ['numbers']),
+    # A clipped word is not a verbatim quotation.
+    (lambda t: t.replace('δεν το έβαλαν κάτω', 'δεν το έβαλαν κάτ'), ['quotes']),
+])
+def test_review_bypasses_are_caught(vocabulary, article, adapted, edit, failing):
+    targets = select_targets(vocabulary, article.text)
+    report = check_adaptation(edit(adapted), article.text, targets, vocabulary)
+    assert [r.name for r in report.results if not r.passed] == failing, report.failures()
+
+
+@pytest.mark.parametrize('edit', [
+    lambda t: t.replace('δεν το έβαλαν κάτω', 'δεν το έβαλαν'),  # a verbatim excerpt
+    lambda t: t.replace('Νίκος Παπαδάκης', 'Νίκου Παπαδάκη'),  # inflected source name
+    lambda t: t.replace('Φέτος η σοδειά', 'Η σοδειά φέτος'),
+    lambda t: t.replace('Η γιορτή του κάστανου', 'Γιορτή του κάστανου στον Ασπρόλακκο', 1),
+])
+def test_legitimate_variants_still_pass(vocabulary, article, adapted, edit):
+    targets = select_targets(vocabulary, article.text)
+    report = check_adaptation(edit(adapted), article.text, targets, vocabulary)
+    for name in ('numbers', 'names', 'quotes'):
+        assert report.get(name).passed, report.failures()
+
+
+def test_the_title_is_checked_against_the_source_title(vocabulary):
+    report = check_adaptation('Ο Παπαδάκης στον Ασπρόλακκο\n\nΚείμενο.', 'Κείμενο χωρίς ονόματα.', [],
+                              vocabulary, source_title='Ο Παπαδάκης στον Ασπρόλακκο')
+    assert report.get('names').passed
+    report = check_adaptation('Ο Παπαδάκης στον Ασπρόλακκο\n\nΚείμενο.', 'Κείμενο χωρίς ονόματα.', [],
+                              vocabulary)
+    assert not report.get('names').passed
+
+
+def test_spelled_out_numbers_must_come_from_the_source(vocabulary):
+    def numbers(text, source):
+        return check_adaptation(text, source, [], vocabulary).get('numbers')
+
+    assert numbers('Ήρθαν δύο φίλοι.', 'Ήρθαν δύο φίλοι.').passed
+    assert not numbers('Ήρθαν τρεις φίλοι.', 'Ήρθαν δύο φίλοι.').passed
+    assert not numbers('Ήρθαν εικοσιπέντε φίλοι.', 'Ήρθαν δύο φίλοι.').passed
+    assert numbers('Ήρθε ένα παιδί.', 'Ήρθε το παιδί.').passed  # ένα is the article here
+    assert numbers('Το κόμμα μίλησε.', 'Ο πρόεδρος μίλησε.').passed  # κόμμα is a party
+
+
+def test_quotation_must_match_whole_words(vocabulary):
+    def quotes(text, source):
+        return check_adaptation(text, source, [], vocabulary).get('quotes').passed
+
+    source = 'Είπε: «Δεν το έβαλαν κάτω».'
+    assert quotes('Είπε: «Δεν το έβαλαν κάτω».', source)
+    assert quotes('Είπε: «το έβαλαν».', source)
+    assert not quotes('Είπε: «το έβαλαν κάτ».', source)
+    assert not quotes('Είπε: «εν το έβαλαν».', source)
+    assert quotes(nfd('Είπε: «Δεν το έβαλαν κάτω».'), source)
+
+
+def test_related_but_distinct_lemmas_are_not_the_learners_word():
+    v = Vocabulary([VocabEntry('κατοικώ', 'due', 'to live in'), VocabEntry('δημοτικός', 'due')])
+    assert v.lookup('κατοικώ').state == 'due'
+    assert v.lookup('κατοικούν').state == 'due'
+    for related in ('κατοικίδιο', 'δημοτικότητα', 'δημοτικιστής'):
+        assert v.lookup(related).state == NEW, related
+        assert v.lookup(related).entry is None, related
+    targets = select_targets(v, 'Το κατοικίδιο κοιμάται.')
+    assert not any(t.in_article for t in targets)
+    assert targets_used(v, 'Το κατοικίδιο κοιμάται.', targets) == []
+    assert [t for _, t in v.annotate('Το κατοικίδιο κοιμάται.') if t.entry] == []
+
+
+def test_inflected_forms_after_an_aspect_marker_still_match():
+    v = Vocabulary([VocabEntry('δυσκολεύομαι', 'lesson')])
+    for form in ('δυσκολεύτηκε', 'δυσκολεύτηκαν', 'δυσκολευτούμε', 'δυσκολεύομαι'):
+        assert v.lookup(form).lemma == 'δυσκολεύομαι', form
+
+
+def test_a_dictionary_lemma_is_not_overridden_by_a_prefix_match():
+    class Dict:
+        def candidates(self, word):
+            return ['κατοικίδιο'] if word == 'κατοικιδίου' else []
+
+    v = Vocabulary([VocabEntry('κατοικώ', 'due')], lemmatizer=Dict())
+    assert v.lookup('κατοικιδίου').state == NEW
+    assert v.lookup('κατοικιδίου').lemma == 'κατοικίδιο'

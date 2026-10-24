@@ -7,13 +7,14 @@ adaptation fails its checks twice, the fallback is the best excerpt of the artic
 """
 
 import re
+import unicodedata
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 
 from greek_utils.reader.article import Article
 from greek_utils.reader.targets import Target, targets_used
-from greek_utils.reader.text import sentences, tokenize
-from greek_utils.reader.vocab import NAME, NUMBER, Vocabulary, new_ratio, stem
+from greek_utils.reader.text import FUNCTION_WORDS, is_spelled_quantity, sentences, tokenize
+from greek_utils.reader.vocab import FUNCTION, NAME, NUMBER, Vocabulary, new_ratio, stem
 
 Adapter = Callable[[str], str]
 
@@ -113,7 +114,24 @@ NUMBER_RE = re.compile(r'\d+(?:[.,]\d+)*')
 
 
 def _normalize_quote(text: str) -> str:
-    return re.sub(r'\s+', ' ', text.replace('’', "'")).strip(' .,;')
+    text = unicodedata.normalize('NFC', text).replace('’', "'")
+    return re.sub(r'\s+', ' ', text).strip(' .,;')
+
+
+def _is_name_candidate(tok, info, vocabulary: Vocabulary) -> bool:
+    """
+    A token that must come from the source because it is a proper name. Learner-state
+    annotation does not decide this: a capitalized word in mid-sentence is a name even
+    if its letters resemble a listed word, and a sentence-initial one is a name unless
+    it is a word the learner list, frequent list or dictionary knows.
+    """
+    if info.state in (FUNCTION, NUMBER):
+        return False
+    if info.state == NAME:
+        return True
+    if not tok.capitalized:
+        return False
+    return not tok.initial or not vocabulary.is_known_form(tok.text)
 
 
 def _body(text: str) -> str:
@@ -126,7 +144,12 @@ def _body(text: str) -> str:
 
 
 def check_adaptation(text: str, source: str, targets: list[Target], vocabulary: Vocabulary,
-                     rules: Rules = DEFAULT_RULES) -> CheckReport:
+                     rules: Rules = DEFAULT_RULES, source_title: str = '') -> CheckReport:
+    """
+    Length, level and target checks look at the body only (the title line is not
+    counted). The factual checks (numbers, names, quotations) look at the whole adapted
+    text, title included, against the source title and text.
+    """
     body = _body(text)
     tokens = tokenize(body)
     annotated = vocabulary.annotate(body)
@@ -163,26 +186,35 @@ def check_adaptation(text: str, source: str, targets: list[Target], vocabulary: 
         f'{rules.max_mean_sentence_words:g}, longest <= {rules.max_sentence_words})', round(mean, 1),
     ))
 
-    source_numbers = set(NUMBER_RE.findall(source))
-    bad_numbers = sorted({n for n in NUMBER_RE.findall(body) if n not in source_numbers})
+    facts_source = f'{source_title}\n\n{source}'
+    source_tokens = tokenize(facts_source)
+    source_keys = {t.folded for t in source_tokens}
+
+    source_numbers = set(NUMBER_RE.findall(facts_source))
+    bad_numbers = sorted({n for n in NUMBER_RE.findall(text) if n not in source_numbers})
+    # A quantity spelled out in words cannot be compared with the source's digits, so it
+    # is accepted only when the source spells out the same word; anything else is
+    # unverified and fails, rather than passing as a number that was never checked.
+    spelled = sorted({t.text.lower() for t in tokenize(text)
+                      if t.kind == 'word' and is_spelled_quantity(t.text) and t.folded not in source_keys})
     results.append(CheckResult(
-        'numbers', not bad_numbers,
-        'every number is in the source' if not bad_numbers
-        else 'not in the source: ' + ', '.join(bad_numbers), bad_numbers,
+        'numbers', not bad_numbers and not spelled,
+        'every number is in the source' if not (bad_numbers or spelled)
+        else '; '.join(filter(None, [
+            'not in the source: ' + ', '.join(bad_numbers) if bad_numbers else '',
+            'spelled out and not in the source, so unverified: ' + ', '.join(spelled) if spelled else '',
+        ])), bad_numbers + spelled,
     ))
 
-    source_keys = {t.folded for t in tokenize(source)}
-    source_stems = {stem(k) for k in source_keys}
+    # Greek names inflect (Πετρούνιας, Πετρούνια): a name matches a capitalized word of
+    # the source when the two share a stem, and never by a mere shared beginning.
+    source_name_stems = {stem(t.text) for t in source_tokens
+                         if t.kind == 'word' and t.capitalized and t.folded not in FUNCTION_WORDS}
     bad_names = []
-    for tok, info in annotated:
-        if info.state != NAME or tok.kind == NUMBER:
+    for tok, info in vocabulary.annotate(text):
+        if tok.kind == NUMBER or not _is_name_candidate(tok, info, vocabulary):
             continue
-        if tok.folded in source_keys or stem(tok.text) in source_stems:
-            continue
-        # Greek names inflect (Πετρούνιας, Πετρούνια): accept a shared stem prefix.
-        s = stem(tok.text)
-        if len(s) >= 4 and any(k.startswith(s) or s.startswith(stem(k)) for k in source_keys
-                               if len(stem(k)) >= 4):
+        if tok.folded in source_keys or stem(tok.text) in source_name_stems:
             continue
         bad_names.append(tok.text)
     bad_names = sorted(set(bad_names))
@@ -192,11 +224,12 @@ def check_adaptation(text: str, source: str, targets: list[Target], vocabulary: 
         else 'not in the source: ' + ', '.join(bad_names), bad_names,
     ))
 
-    source_norm = _normalize_quote(source)
+    # A quotation may be a shorter excerpt of the source, but only of whole words.
+    source_norm = _normalize_quote(facts_source)
     bad_quotes = []
-    for m in QUOTE_RE.finditer(body):
+    for m in QUOTE_RE.finditer(text):
         quote = _normalize_quote(next(g for g in m.groups() if g))
-        if quote and quote not in source_norm:
+        if quote and not re.search(rf'(?<![\w\u0300-\u036f]){re.escape(quote)}(?![\w\u0300-\u036f])', source_norm):
             bad_quotes.append(quote)
     results.append(CheckResult(
         'quotes', not bad_quotes,
@@ -252,7 +285,7 @@ def adapt(article: Article, targets: list[Target], vocabulary: Vocabulary,
     to an excerpt when every attempt fails. With no adapter, return the checked excerpt.
     """
     def check(text: str) -> CheckReport:
-        return check_adaptation(text, article.text, targets, vocabulary, rules)
+        return check_adaptation(text, article.text, targets, vocabulary, rules, article.title)
 
     if adapter is None:
         text = excerpt(article.text, rules)
@@ -277,4 +310,4 @@ def check_supplied(text: str, article: Article, targets: list[Target], vocabular
                    rules: Rules = DEFAULT_RULES) -> Adaptation:
     """Check an adaptation made elsewhere (by hand, or by a separate model run)."""
     return Adaptation(text.strip(), ORIGIN_SUPPLIED,
-                      check_adaptation(text, article.text, targets, vocabulary, rules))
+                      check_adaptation(text, article.text, targets, vocabulary, rules, article.title))

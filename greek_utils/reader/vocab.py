@@ -54,7 +54,10 @@ SUFFIXES = sorted({
 MIN_STEM = 3
 # A learner lemma whose stem is at least this long also matches words that start with
 # it, which catches verb forms with an added aspect or voice marker (δυσκολεύ-τηκαν).
+# What follows the stem must be such a marker plus an ending, so that a different word
+# built on the same letters (κατοικ-ίδιο, δημοτικ-ότητα) is not taken for the lemma.
 MIN_PREFIX_STEM = 6
+ASPECT_MARKERS = frozenset(('', 'σ', 'ξ', 'ψ', 'κ', 'τ', 'θ'))
 
 
 def stem(word: str) -> str:
@@ -64,6 +67,11 @@ def stem(word: str) -> str:
         if key.endswith(suffix) and len(key) - len(suffix) >= MIN_STEM:
             return key[: -len(suffix)]
     return key
+
+
+def is_inflectional_continuation(rest: str) -> bool:
+    """True when ``rest`` is an optional aspect marker followed by an inflectional ending."""
+    return any(rest.endswith(suffix) and rest[:-len(suffix)] in ASPECT_MARKERS for suffix in SUFFIXES)
 
 
 def headword(text: str) -> str:
@@ -140,7 +148,8 @@ class Vocabulary:
     def _by_prefix(self, key: str) -> VocabEntry | None:
         best = None
         for s, entry in self._by_stem.items():
-            if len(s) >= MIN_PREFIX_STEM and key.startswith(s) and (best is None or len(s) > best[0]):
+            if (len(s) >= MIN_PREFIX_STEM and key.startswith(s) and (best is None or len(s) > best[0])
+                    and is_inflectional_continuation(key[len(s):])):
                 best = (len(s), entry)
         return best[1] if best else None
 
@@ -183,7 +192,10 @@ class Vocabulary:
             entry = self._by_key.get(fold(cand))
             if entry:
                 return WordInfo(entry.lemma, entry.state, entry)
-        entry = self._by_stem.get(stem(word)) or self._by_prefix(fold(word))
+        # A form the dictionary resolves to some other lemma is not stretched to fit a
+        # learner lemma by its letters alone; only the stem match may still join them.
+        resolved = len(cands) > 1
+        entry = self._by_stem.get(stem(word)) or (None if resolved else self._by_prefix(fold(word)))
         if entry:
             return WordInfo(entry.lemma, entry.state, entry)
         lemma = cands[1] if len(cands) > 1 else word.lower()
