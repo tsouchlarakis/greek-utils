@@ -319,6 +319,13 @@ def test_apostrophe_is_not_a_letter_when_comparing_accents():
     ('αντιδήμαρχος', 'αντι δημαρχος', [CLEAN]),
     ("σ' αυτό", 'σαυτό', [CLEAN, CLEAN]),
     ("σ' αυτό", 'σαυτο', [CLEAN, CLEAN]),
+    # join: each text word is judged on its own accent, not the span's
+    ('καλημέρα κόσμε', 'καλημέρακοσμέ', [CLEAN, STRESS]),
+    ('καλημέρα κόσμε', 'καλήμερακόσμε', [STRESS, CLEAN]),
+    ('καλημέρα κόσμε', 'καλημέρακόσμε', [CLEAN, CLEAN]),
+    ('καλημέρα κόσμε', 'καλημερακοσμέ', [CLEAN, STRESS]),  # one accent heard, on κόσμε
+    # an accent heard on an unaccented clitic belongs to the accented word beside it
+    ('το σπίτι', 'τόσπιτι', [CLEAN, STRESS]),
 ])
 def test_split_and_join_are_checked_for_stress(reference, heard, statuses):
     result = compare(reference, heard)
@@ -329,6 +336,11 @@ def test_split_and_join_are_checked_for_stress(reference, heard, statuses):
 def test_split_stress_with_low_confidence_is_unclear():
     heard = [HeardWord('αντί', 0.0, 0.4, 0.3), HeardWord('δημαρχος', 0.5, 1.0, 0.9)]
     assert compare('αντιδήμαρχος', heard).words[0].status == UNCLEAR
+
+
+def test_join_stress_with_low_confidence_is_unclear_only_where_it_moved():
+    heard = [HeardWord('καλημέρακοσμέ', 0.0, 1.0, 0.3)]
+    assert [w.status for w in compare('καλημέρα κόσμε', heard).words] == [CLEAN, UNCLEAR]
 
 
 def test_silence_inside_a_split_word_is_a_pause():

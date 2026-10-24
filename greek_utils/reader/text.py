@@ -71,6 +71,11 @@ def accent_positions(words: list[str]) -> set[int]:
     return found
 
 
+def letter_count(word: str) -> int:
+    """Letters of a word as ``accent_positions`` counts them: no marks, no apostrophes."""
+    return sum(1 for c in unicodedata.normalize('NFD', word) if not unicodedata.combining(c) and c not in APOSTROPHES)
+
+
 def accent_position(word: str) -> int | None:
     """Index of the letter carrying the acute accent (tonos), or None if unaccented."""
     found = accent_positions([word])

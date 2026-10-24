@@ -34,6 +34,7 @@ from greek_utils.reader.text import (
     accent_positions,
     fold,
     is_number_word,
+    letter_count,
     levenshtein,
     strict,
     tokenize,
@@ -250,19 +251,38 @@ def _classify(ref: Token, heard: HeardWord, min_confidence: float) -> str:
     return UNCLEAR if low_confidence else MISREAD
 
 
-def _classify_span(refs: list[Token], span: list[HeardWord], min_confidence: float) -> str:
+def _classify_span(refs: list[Token], span: list[HeardWord], min_confidence: float) -> list[str]:
     """
-    Status for text words heard divided differently (one word as two, two as one). The
-    letters already agree; only the accent can differ, and it is judged on the words
-    laid end to end, with the same rules as a single word: a missing accent asserts
-    nothing, and a mismatch the recognizer was unsure of is unclear.
+    Statuses for text words heard divided differently (one word as two, two as one).
+    The letters already agree; only the accents can differ. Each heard accent belongs to
+    the text word whose letters it falls on, or, when it falls on an unaccented word (σ',
+    το), to the nearest accented one; each accented text word is then judged on its own
+    accents with the same rules as a single word: a missing accent asserts nothing, and
+    a mismatch the recognizer was unsure of is unclear. An unaccented word is clean.
     """
-    ref_accents = accent_positions([t.text for t in refs])
     heard_accents = accent_positions([h.text for h in span])
-    if not ref_accents or not heard_accents or ref_accents <= heard_accents or heard_accents <= ref_accents:
-        return CLEAN
+    bounds, ref_accents, offset = [], [], 0
+    for t in refs:
+        n = letter_count(t.text)
+        bounds.append((offset, offset + n))
+        ref_accents.append({offset + a for a in accent_positions([t.text])})
+        offset += n
+    accented = [k for k, acc in enumerate(ref_accents) if acc]
+    own: dict[int, set[int]] = {k: set() for k in accented}
+    for a in heard_accents if accented else ():
+        k = min(accented, key=lambda k: 0 if bounds[k][0] <= a < bounds[k][1]
+                else min(abs(a - bounds[k][0]), abs(a - (bounds[k][1] - 1))))
+        own[k].add(a)
     confs = [h.confidence for h in span if h.confidence is not None]
-    return UNCLEAR if confs and min(confs) < min_confidence else STRESS
+    unsure = bool(confs) and min(confs) < min_confidence
+    statuses = []
+    for k, ref_acc in enumerate(ref_accents):
+        heard = own.get(k, set())
+        if not ref_acc or not heard or ref_acc <= heard or heard <= ref_acc:
+            statuses.append(CLEAN)
+        else:
+            statuses.append(UNCLEAR if unsure else STRESS)
+    return statuses
 
 
 def compare(
@@ -328,16 +348,14 @@ def compare(
             if inside:
                 pause = round((pause or 0.0) + inside, 3)
 
-        span_status = _classify_span(ref[i0:i1], span, min_confidence) if op in ('split', 'join') else None
+        span_statuses = _classify_span(ref[i0:i1], span, min_confidence) if op in ('split', 'join') else None
         for i in range(i0, i1):
             if op == 'match':
                 status, note = _classify(ref[i], span[0], min_confidence), None
             elif op == 'number':
                 status, note = UNCLEAR, 'number read as words; not checked'
-            elif span_status == CLEAN or not accent_positions([ref[i].text]):
-                status, note = CLEAN, None  # split or join: the same letters, divided differently
-            else:  # only the text word that carries the accent can be misstressed
-                status, note = span_status, None
+            else:  # split or join: the same letters, divided differently
+                status, note = span_statuses[i - i0], None
             results.append(WordResult(
                 index=i,
                 text=ref[i].text,
