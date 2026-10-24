@@ -15,12 +15,14 @@ from dataclasses import dataclass
 
 APOSTROPHES = "'’ʼ`"
 
-# A word is letters, optionally joined by internal apostrophes (σ'αυτό), optionally
-# ending in an elision apostrophe (απ'). A number is digits with . or , separators,
-# optionally followed by letters (35χρονος).
+# A letter is a letter or a combining mark, so a decomposed accent (α + U+0301) stays
+# inside its word. A word is letters, optionally joined by internal apostrophes
+# (σ'αυτό), optionally ending in an elision apostrophe (απ'). A number is digits with
+# . or , separators, optionally followed by letters (35χρονος).
+_LETTER = r"(?:[^\W\d_]|[\u0300-\u036f])"
 TOKEN_RE = re.compile(
-    rf"(?P<number>\d+(?:[.,]\d+)*[^\W\d_]*)"
-    rf"|(?P<word>[^\W\d_]+(?:[{APOSTROPHES}][^\W\d_]+)*[{APOSTROPHES}]?)"
+    rf"(?P<number>\d+(?:[.,]\d+)*{_LETTER}*)"
+    rf"|(?P<word>{_LETTER}+(?:[{APOSTROPHES}]{_LETTER}+)*[{APOSTROPHES}]?)"
 )
 
 # A sentence runs up to terminal punctuation (. ! ; Greek question mark ; ellipsis),
@@ -52,15 +54,61 @@ def fold(word: str) -> str:
     return s
 
 
+def accent_positions(words: list[str]) -> set[int]:
+    """
+    Indexes, in the letters of the words laid end to end, of the letters carrying an
+    acute accent (tonos). Apostrophes are not letters, so an elided σ' and the σ of
+    σαυτό count the same.
+    """
+    found = set()
+    letters = 0
+    for word in words:
+        for c in unicodedata.normalize('NFD', word.lower()):
+            if c == ACUTE:
+                found.add(letters - 1)
+            elif not unicodedata.combining(c) and c not in APOSTROPHES:
+                letters += 1
+    return found
+
+
 def accent_position(word: str) -> int | None:
     """Index of the letter carrying the acute accent (tonos), or None if unaccented."""
-    letters = 0
-    for c in unicodedata.normalize('NFD', word.lower()):
-        if c == ACUTE:
-            return letters - 1
-        if not unicodedata.combining(c):
-            letters += 1
-    return None
+    found = accent_positions([word])
+    return min(found) if found else None
+
+
+_NUMBER_WORDS = {fold(w) for w in '''
+    μηδέν ένα ένας μία μια δύο δυο τρία τρεις τέσσερα τέσσερις πέντε έξι επτά εφτά
+    οκτώ οχτώ εννέα εννιά δέκα έντεκα δώδεκα δεκατρία δεκατέσσερα δεκαπέντε δεκαέξι
+    δεκαεπτά δεκαεφτά δεκαοκτώ δεκαοχτώ δεκαεννέα δεκαεννιά είκοσι τριάντα σαράντα
+    πενήντα εξήντα εβδομήντα ογδόντα ενενήντα εκατό εκατόν κόμμα
+'''.split()}
+_NUMBER_WORD_RE = re.compile(
+    r'^(?:(?:δια|τρια|τετρα|πεντα|εξα|επτα|εφτα|οκτα|οχτα|εννια|εννεα)κοσι(?:α|εσ|οι|ων)'
+    r'|χιλι(?:α|αδεσ|αδα|εσ|οι|αδων)|εκατομμυρι(?:ο|α)'
+    r'|(?:εικοσι|τριαντα|σαραντα|πενηντα|εξηντα|εβδομηντα|ογδοντα|ενενηντα)'
+    r'(?:ενα|μια|δυο|τρια|τεσσερα|πεντε|εξι|εφτα|επτα|οκτω|οχτω|εννια|εννεα))$'
+)
+
+
+def _is_number_word(word: str) -> bool:
+    key = fold(word)
+    return key.isdigit() or key in _NUMBER_WORDS or bool(_NUMBER_WORD_RE.match(key))
+
+# Number words that are also ordinary words: ένα, μια, ένας are the indefinite article
+# far more often than the numeral; κόμμα is a comma in "τρία κόμμα πέντε" but mostly a
+# political party.
+AMBIGUOUS_NUMBER_WORDS = frozenset(fold(w) for w in 'ένα ένας μία μια κόμμα'.split())
+
+
+def is_number_word(word: str) -> bool:
+    key = fold(word)
+    return key.isdigit() or key in _NUMBER_WORDS or bool(_NUMBER_WORD_RE.match(key))
+
+
+def is_spelled_quantity(word: str) -> bool:
+    """A number spelled out in words, excluding words that are mostly something else."""
+    return is_number_word(word) and not word.isdigit() and fold(word) not in AMBIGUOUS_NUMBER_WORDS
 
 
 def is_greek(word: str) -> bool:

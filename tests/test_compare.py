@@ -7,6 +7,7 @@ word) gets it wrong; ``test_naive_comparer_fails_every_scenario`` keeps that tru
 """
 
 import json
+import unicodedata
 from dataclasses import dataclass, field
 
 import pytest
@@ -280,3 +281,74 @@ def test_cli_compare(tmp_path):
     out = CliRunner().invoke(cli, ['reader', 'compare', str(text), str(transcript), '--json'])
     data = json.loads(out.output)
     assert data['counts']['skipped'] == 1 and data['counts']['stress'] == 1 and data['counts']['paused'] == 1
+
+
+# Review fixes (PR #13)
+
+
+def nfd(text: str) -> str:
+    return unicodedata.normalize('NFD', text)
+
+
+def test_decomposed_accents_stay_inside_their_word():
+    assert [t.text for t in tokenize(nfd('Καλημέρα κόσμε.'))] == [nfd('Καλημέρα'), nfd('κόσμε')]
+    for reference, transcript in [(nfd('Καλημέρα κόσμε.'), 'Καλημέρα κόσμε.'),
+                                  ('Καλημέρα κόσμε.', nfd('Καλημέρα κόσμε.')),
+                                  (nfd('Καλημέρα κόσμε.'), nfd('Καλημέρα κόσμε.'))]:
+        result = compare(reference, transcript)
+        assert [w.status for w in result.words] == [CLEAN, CLEAN]
+    assert compare('Πότε', nfd('ποτέ')).words[0].status == STRESS
+    assert compare(nfd('Πότε'), 'ποτέ').words[0].status == STRESS
+    assert compare(nfd('Πότε'), nfd('ποτέ')).words[0].status == STRESS
+    assert compare(nfd('Πότε'), nfd('πότε')).words[0].status == CLEAN
+
+
+def test_apostrophe_is_not_a_letter_when_comparing_accents():
+    # σ'αυτό and σαυτό are the same letters with the accent on the same syllable.
+    assert compare("Πήγε σ'αυτό το σπίτι.", 'πήγε σαυτό το σπίτι').words[1].status == CLEAN
+
+
+@pytest.mark.parametrize('reference, heard, statuses', [
+    # split: the accent moved from δή to αντί
+    ('αντιδήμαρχος', 'αντί δημαρχος', [STRESS]),
+    # join: the accent moved from αυτό to σά
+    ("σ' αυτό", 'σάυτο', [CLEAN, STRESS]),
+    # the accent where it belongs, or no accent to judge, stays clean
+    ('αντιδήμαρχος', 'αντι δήμαρχος', [CLEAN]),
+    ('αντιδήμαρχος', 'αντί δήμαρχος', [CLEAN]),
+    ('αντιδήμαρχος', 'αντι δημαρχος', [CLEAN]),
+    ("σ' αυτό", 'σαυτό', [CLEAN, CLEAN]),
+    ("σ' αυτό", 'σαυτο', [CLEAN, CLEAN]),
+])
+def test_split_and_join_are_checked_for_stress(reference, heard, statuses):
+    result = compare(reference, heard)
+    assert [w.status for w in result.words] == statuses
+    assert not result.extras
+
+
+def test_split_stress_with_low_confidence_is_unclear():
+    heard = [HeardWord('αντί', 0.0, 0.4, 0.3), HeardWord('δημαρχος', 0.5, 1.0, 0.9)]
+    assert compare('αντιδήμαρχος', heard).words[0].status == UNCLEAR
+
+
+def test_silence_inside_a_split_word_is_a_pause():
+    heard = [HeardWord('ο', 0.0, 0.2), HeardWord('αντι', 0.3, 0.6),
+             HeardWord('δήμαρχος', 2.7, 3.2), HeardWord('ήρθε', 3.3, 3.7)]
+    result = compare('Ο αντιδήμαρχος ήρθε.', heard)
+    assert [w.status for w in result.words] == [CLEAN, CLEAN, CLEAN]
+    assert result.words[1].pause_before == pytest.approx(2.2)  # 0.1 before, 2.1 inside
+    assert result.words[1].paused
+    assert result.words[2].pause_before == pytest.approx(0.1)  # not counted twice
+    assert result.counts['paused'] == 1
+
+
+def test_silence_inside_a_number_read_as_words_is_a_pause():
+    heard = [HeardWord('στις', 0.0, 0.3), HeardWord('δεκα', 0.4, 0.8), HeardWord('πέντε', 3.0, 3.4)]
+    result = compare('στις 15', heard)
+    assert result.words[1].status == UNCLEAR
+    assert result.words[1].paused
+
+
+def test_short_silence_inside_a_split_word_is_not_a_pause():
+    heard = [HeardWord('αντι', 0.0, 0.3), HeardWord('δήμαρχος', 0.6, 1.1)]
+    assert not compare('αντιδήμαρχος', heard).words[0].paused

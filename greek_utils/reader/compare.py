@@ -16,8 +16,8 @@ unclear    a mismatch the recognizer itself was unsure of (confidence below the
 =========  ==========================================================================
 
 Words also carry ``pause_before``: the silence, in seconds, between the previous text
-word and this one (restarts and fillers in between excluded), and ``paused`` when that
-reaches the threshold. Heard words that line up with no text word are ``extras``,
+word and this one (restarts and fillers in between excluded; silence inside a word heard
+as several pieces included), and ``paused`` when that reaches the threshold. Heard words that line up with no text word are ``extras``,
 labeled ``repeat`` when they repeat a nearby text word (a restart).
 
 This is not pronunciation scoring. A recognizer tends to recover the intended word, so
@@ -25,11 +25,19 @@ a near-miss pronunciation usually comes back as the right word.
 """
 
 import json
-import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from greek_utils.reader.text import Token, accent_position, fold, levenshtein, strict, tokenize
+from greek_utils.reader.text import (
+    Token,
+    accent_position,
+    accent_positions,
+    fold,
+    is_number_word,
+    levenshtein,
+    strict,
+    tokenize,
+)
 
 CLEAN = 'clean'
 MISREAD = 'misread'
@@ -49,23 +57,6 @@ NUMBER_COST = 0.1
 MISREAD_BASE = 0.6  # + normalized letter distance, so a misread costs 0.6-1.6 < skip + extra
 MAX_NUMBER_WORDS = 6
 REPEAT_WINDOW = 2
-
-_NUMBER_WORDS = {fold(w) for w in '''
-    μηδέν ένα ένας μία μια δύο δυο τρία τρεις τέσσερα τέσσερις πέντε έξι επτά εφτά
-    οκτώ οχτώ εννέα εννιά δέκα έντεκα δώδεκα δεκατρία δεκατέσσερα δεκαπέντε δεκαέξι
-    δεκαεπτά δεκαεφτά δεκαοκτώ δεκαοχτώ δεκαεννέα δεκαεννιά είκοσι τριάντα σαράντα
-    πενήντα εξήντα εβδομήντα ογδόντα ενενήντα εκατό εκατόν κόμμα
-'''.split()}
-_NUMBER_WORD_RE = re.compile(
-    r'^(?:(?:δια|τρια|τετρα|πεντα|εξα|επτα|εφτα|οκτα|οχτα|εννια|εννεα)κοσι(?:α|εσ|οι|ων)'
-    r'|χιλι(?:α|αδεσ|αδα|εσ|οι|αδων)|εκατομμυρι(?:ο|α))$'
-)
-
-
-def _is_number_word(word: str) -> bool:
-    key = fold(word)
-    return key.isdigit() or key in _NUMBER_WORDS or bool(_NUMBER_WORD_RE.match(key))
-
 
 @dataclass(frozen=True)
 class HeardWord:
@@ -220,7 +211,7 @@ def _align(ref: list[Token], heard: list[HeardWord]) -> list[tuple[str, int, int
                 options.append((cost[i - 2][j - 1] + MERGE_COST, ('join', 2, 1)))
             if i and j and ref[i - 1].kind == 'number':
                 for k in range(1, min(MAX_NUMBER_WORDS, j) + 1):
-                    if not _is_number_word(heard[j - k].text):
+                    if not is_number_word(heard[j - k].text):
                         break
                     if k == 1 and heard_fold[j - 1].isdigit():
                         continue  # digits compare as an ordinary match
@@ -259,6 +250,21 @@ def _classify(ref: Token, heard: HeardWord, min_confidence: float) -> str:
     return UNCLEAR if low_confidence else MISREAD
 
 
+def _classify_span(refs: list[Token], span: list[HeardWord], min_confidence: float) -> str:
+    """
+    Status for text words heard divided differently (one word as two, two as one). The
+    letters already agree; only the accent can differ, and it is judged on the words
+    laid end to end, with the same rules as a single word: a missing accent asserts
+    nothing, and a mismatch the recognizer was unsure of is unclear.
+    """
+    ref_accents = accent_positions([t.text for t in refs])
+    heard_accents = accent_positions([h.text for h in span])
+    if not ref_accents or not heard_accents or ref_accents <= heard_accents or heard_accents <= ref_accents:
+        return CLEAN
+    confs = [h.confidence for h in span if h.confidence is not None]
+    return UNCLEAR if confs and min(confs) < min_confidence else STRESS
+
+
 def compare(
     text: str,
     transcript,
@@ -279,6 +285,11 @@ def compare(
     results: list[WordResult] = []
     extras: list[Extra] = []
     last_aligned_j = None  # index of the last heard word aligned to a text word
+
+    def silence_within(j0: int, j1: int) -> float:
+        """Silence between the words of heard[j0:j1], which share one text word."""
+        return sum(max(0.0, heard[k].start - heard[k - 1].end) for k in range(j0 + 1, j1)
+                   if heard[k].start is not None and heard[k - 1].end is not None)
 
     def silence_before(j0: int) -> float | None:
         """Silence between the previous aligned heard word and heard[j0], skipping
@@ -311,14 +322,22 @@ def compare(
         confs = [h.confidence for h in span if h.confidence is not None]
         conf = min(confs) if confs else None
         pause = silence_before(j0)
+        if op in ('split', 'number') and len(span) > 1:
+            # One text word heard as several: hesitating inside it is hesitating on it.
+            inside = silence_within(j0, j1)
+            if inside:
+                pause = round((pause or 0.0) + inside, 3)
 
+        span_status = _classify_span(ref[i0:i1], span, min_confidence) if op in ('split', 'join') else None
         for i in range(i0, i1):
             if op == 'match':
                 status, note = _classify(ref[i], span[0], min_confidence), None
             elif op == 'number':
                 status, note = UNCLEAR, 'number read as words; not checked'
-            else:  # split or join: the same letters, divided differently
-                status, note = CLEAN, None
+            elif span_status == CLEAN or not accent_positions([ref[i].text]):
+                status, note = CLEAN, None  # split or join: the same letters, divided differently
+            else:  # only the text word that carries the accent can be misstressed
+                status, note = span_status, None
             results.append(WordResult(
                 index=i,
                 text=ref[i].text,
