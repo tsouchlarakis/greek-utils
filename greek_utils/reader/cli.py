@@ -81,6 +81,8 @@ def build(source, vocab_path, frequent_path, kaikki_path, adapted_path, adapter_
                err=True)
     for r in checks['results']:
         click.echo(f"  {'ok  ' if r['passed'] else 'FAIL'} {r['name']}: {r['detail']}", err=True)
+        if r.get('warning'):
+            click.echo(f"  WARN {r['name']}: {r['warning']}", err=True)
     if strict and not checks['passed']:
         sys.exit(1)
 

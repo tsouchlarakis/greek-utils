@@ -380,6 +380,10 @@ def test_decomposed_text_checks_the_same_as_precomposed(vocabulary, article, ada
     # A quantity rewritten in words is not verified.
     (lambda t: t.replace('850 μέτρα', 'χίλια μέτρα'), ['numbers']),
     (lambda t: t.replace('850 μέτρα', 'οκτακόσια πενήντα μέτρα'), ['numbers']),
+    # Inflected cardinals and ordinals are spelled-out quantities too.
+    (lambda t: t.replace('στα 850 μέτρα', 'σε υψόμετρο χιλίων μέτρων'), ['numbers']),
+    (lambda t: t.replace('πάνω από 2.000 επισκέπτες', 'πάνω από διακοσίους επισκέπτες'), ['numbers']),
+    (lambda t: t.replace('εικοσιπέμπτη', 'τριακοστή'), ['numbers']),
     # A clipped word is not a verbatim quotation.
     (lambda t: t.replace('δεν το έβαλαν κάτω', 'δεν το έβαλαν κάτ'), ['quotes']),
 ])
@@ -461,3 +465,15 @@ def test_a_dictionary_lemma_is_not_overridden_by_a_prefix_match():
     v = Vocabulary([VocabEntry('κατοικώ', 'due')], lemmatizer=Dict())
     assert v.lookup('κατοικιδίου').state == NEW
     assert v.lookup('κατοικιδίου').lemma == 'κατοικίδιο'
+
+
+def test_ambiguous_ordinals_warn_without_failing(vocabulary):
+    report = check_adaptation('Ήρθε για πρώτη φορά.', 'Ήρθε ξανά.', [], vocabulary)
+    numbers = report.get('numbers')
+    assert numbers.passed
+    assert 'πρώτη' in numbers.warning
+    assert report.warnings() == [f'numbers: {numbers.warning}']
+    assert report.to_dict()['warnings'] == report.warnings()
+    assert check_adaptation('Ήρθε για πρώτη φορά.', 'Πρώτη φορά.', [], vocabulary).get('numbers').warning is None
+    # εκτός ("except") folds like έκτος ("sixth") but is not a number.
+    assert check_adaptation('Όλοι εκτός από τον Νίκο.', 'Όλοι.', [], vocabulary).get('numbers').passed

@@ -77,38 +77,58 @@ def accent_position(word: str) -> int | None:
     return min(found) if found else None
 
 
-_NUMBER_WORDS = {fold(w) for w in '''
-    μηδέν ένα ένας μία μια δύο δυο τρία τρεις τέσσερα τέσσερις πέντε έξι επτά εφτά
-    οκτώ οχτώ εννέα εννιά δέκα έντεκα δώδεκα δεκατρία δεκατέσσερα δεκαπέντε δεκαέξι
-    δεκαεπτά δεκαεφτά δεκαοκτώ δεκαοχτώ δεκαεννέα δεκαεννιά είκοσι τριάντα σαράντα
-    πενήντα εξήντα εβδομήντα ογδόντα ενενήντα εκατό εκατόν κόμμα
-'''.split()}
+# Number words, recognized on folded forms as a stem plus an inflectional ending, so
+# that inflected cardinals (χιλίων, διακοσίους, τριών) and ordinals (εικοσιπέμπτη,
+# τριακοστή) are numbers as much as their dictionary forms.
+_UNITS = 'ενα|ενασ|μια|μια|δυο|τρια|τρεισ|τεσσερα|τεσσερισ|πεντε|εξι|επτα|εφτα|οκτω|οχτω|εννεα|εννια'
+_TENS = 'εικοσι|τριαντα|σαραντα|πενηντα|εξηντα|εβδομηντα|ογδοντα|ενενηντα'
+_ORDINAL_UNITS = 'πρωτ|δευτερ|τριτ|τεταρτ|πεμπτ|εκτ|εβδομ|ογδο|εν{1,2}ατ'
+_ORDINAL_STEMS = (
+    rf'{_ORDINAL_UNITS}|δεκατ|ενδεκατ|εντεκατ|δωδεκατ'
+    r'|εικοστ|τριακοστ|τεσσαρακοστ|πεντηκοστ|εξηκοστ|εβδομηκοστ|ογδοηκοστ|ενενηκοστ'
+    r'|εκατοστ|(?:δια|τρια|τετρα|πεντα|εξα|επτα|εφτα|οκτα|οχτα|εννια|εννεα)κοσιοστ|χιλιοστ'
+)
+_ADJ_ENDING = 'οσ|ου|ο|ον|οι|ουσ|ων|ε|η|ησ|εσ|α'
 _NUMBER_WORD_RE = re.compile(
-    r'^(?:(?:δια|τρια|τετρα|πεντα|εξα|επτα|εφτα|οκτα|οχτα|εννια|εννεα)κοσι(?:α|εσ|οι|ων)'
-    r'|χιλι(?:α|αδεσ|αδα|εσ|οι|αδων)|εκατομμυρι(?:ο|α)'
-    r'|(?:εικοσι|τριαντα|σαραντα|πενηντα|εξηντα|εβδομηντα|ογδοντα|ενενηντα)'
-    r'(?:ενα|μια|δυο|τρια|τεσσερα|πεντε|εξι|εφτα|επτα|οκτω|οχτω|εννια|εννεα))$'
+    r'^(?:'
+    rf'μηδεν|{_UNITS}|τριων|τεσσαρων|δεκα|εντεκα|δωδεκα|δεκα(?:{_UNITS})'
+    rf'|{_TENS}|(?:{_TENS})(?:{_UNITS})|εκατο|εκατον'
+    rf'|(?:δια|τρια|τετρα|πεντα|εξα|επτα|εφτα|οκτα|οχτα|εννια|εννεα)κοσι(?:{_ADJ_ENDING})'
+    rf'|χιλι(?:{_ADJ_ENDING}|αδα|αδεσ|αδων)|(?:δισ)?εκατομμυρι(?:ο|α|ου|ων)'
+    r'|δεκαδ(?:α|εσ|ων)|εκατονταδ(?:α|εσ|ων)'
+    rf'|(?:(?:{_TENS})(?:{_ORDINAL_UNITS})|{_ORDINAL_STEMS})(?:{_ADJ_ENDING})'
+    r'|κομμα'
+    r')$'
 )
 
-
-def _is_number_word(word: str) -> bool:
-    key = fold(word)
-    return key.isdigit() or key in _NUMBER_WORDS or bool(_NUMBER_WORD_RE.match(key))
-
-# Number words that are also ordinary words: ένα, μια, ένας are the indefinite article
-# far more often than the numeral; κόμμα is a comma in "τρία κόμμα πέντε" but mostly a
-# political party.
+# Number words that are mostly something else, told apart only by context: ένα, μια,
+# ένας are the indefinite article far more often than the numeral, and κόμμα is a
+# comma in "τρία κόμμα πέντε" but mostly a political party. Never checked.
 AMBIGUOUS_NUMBER_WORDS = frozenset(fold(w) for w in 'ένα ένας μία μια κόμμα'.split())
+# Written words that fold like a number word but are not one; told apart by the accent
+# (εκτός "except" against έκτος "sixth").
+NOT_NUMBER_WORDS = frozenset(strict(w) for w in 'εκτός'.split())
+# Ordinals that are as often "first", "second", "earlier", "secondary" as a rank in a
+# sequence. Telling the senses apart needs a parser, so a mismatch is reported as an
+# advisory warning rather than a failure.
+_ADVISORY_ORDINAL_RE = re.compile(rf'^(?:πρωτ|δευτερ)(?:{_ADJ_ENDING})$')
 
 
 def is_number_word(word: str) -> bool:
     key = fold(word)
-    return key.isdigit() or key in _NUMBER_WORDS or bool(_NUMBER_WORD_RE.match(key))
+    if key.isdigit():
+        return True
+    return bool(_NUMBER_WORD_RE.match(key)) and strict(word) not in NOT_NUMBER_WORDS
 
 
 def is_spelled_quantity(word: str) -> bool:
     """A number spelled out in words, excluding words that are mostly something else."""
     return is_number_word(word) and not word.isdigit() and fold(word) not in AMBIGUOUS_NUMBER_WORDS
+
+
+def is_advisory_quantity(word: str) -> bool:
+    """A spelled-out ordinal whose numeric sense cannot be told from context (πρώτη φορά)."""
+    return bool(_ADVISORY_ORDINAL_RE.match(fold(word)))
 
 
 def is_greek(word: str) -> bool:

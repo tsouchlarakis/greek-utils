@@ -13,7 +13,13 @@ from dataclasses import asdict, dataclass, field
 
 from greek_utils.reader.article import Article
 from greek_utils.reader.targets import Target, targets_used
-from greek_utils.reader.text import FUNCTION_WORDS, is_spelled_quantity, sentences, tokenize
+from greek_utils.reader.text import (
+    FUNCTION_WORDS,
+    is_advisory_quantity,
+    is_spelled_quantity,
+    sentences,
+    tokenize,
+)
 from greek_utils.reader.vocab import FUNCTION, NAME, NUMBER, Vocabulary, new_ratio, stem
 
 Adapter = Callable[[str], str]
@@ -89,6 +95,8 @@ class CheckResult:
     passed: bool
     detail: str
     value: float | int | list | None = None
+    # Something the check could not decide, shown to the reader but not failing the text.
+    warning: str | None = None
 
 
 @dataclass
@@ -102,11 +110,15 @@ class CheckReport:
     def failures(self) -> list[str]:
         return [f'{r.name}: {r.detail}' for r in self.results if not r.passed]
 
+    def warnings(self) -> list[str]:
+        return [f'{r.name}: {r.warning}' for r in self.results if r.warning]
+
     def get(self, name: str) -> CheckResult:
         return next(r for r in self.results if r.name == name)
 
     def to_dict(self) -> dict:
-        return {'passed': self.passed, 'results': [asdict(r) for r in self.results]}
+        return {'passed': self.passed, 'warnings': self.warnings(),
+                'results': [asdict(r) for r in self.results]}
 
 
 QUOTE_RE = re.compile(r'«([^»]+)»|“([^”]+)”|"([^"]+)"')
@@ -195,8 +207,12 @@ def check_adaptation(text: str, source: str, targets: list[Target], vocabulary: 
     # A quantity spelled out in words cannot be compared with the source's digits, so it
     # is accepted only when the source spells out the same word; anything else is
     # unverified and fails, rather than passing as a number that was never checked.
-    spelled = sorted({t.text.lower() for t in tokenize(text)
-                      if t.kind == 'word' and is_spelled_quantity(t.text) and t.folded not in source_keys})
+    # Ordinals that are as often plain adjectives (πρώτη φορά) only warn.
+    spelled, advisory = set(), set()
+    for t in tokenize(text):
+        if t.kind == 'word' and is_spelled_quantity(t.text) and t.folded not in source_keys:
+            (advisory if is_advisory_quantity(t.text) else spelled).add(t.text.lower())
+    spelled, advisory = sorted(spelled), sorted(advisory)
     results.append(CheckResult(
         'numbers', not bad_numbers and not spelled,
         'every number is in the source' if not (bad_numbers or spelled)
@@ -204,6 +220,8 @@ def check_adaptation(text: str, source: str, targets: list[Target], vocabulary: 
             'not in the source: ' + ', '.join(bad_numbers) if bad_numbers else '',
             'spelled out and not in the source, so unverified: ' + ', '.join(spelled) if spelled else '',
         ])), bad_numbers + spelled,
+        warning=('not in the source, and may be an ordinal; check by hand: ' + ', '.join(advisory)
+                 if advisory else None),
     ))
 
     # Greek names inflect (Πετρούνιας, Πετρούνια): a name matches a capitalized word of
