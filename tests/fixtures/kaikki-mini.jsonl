@@ -1,0 +1,14 @@
+{"word": "λέω", "lang_code": "el", "pos": "verb", "senses": [{"glosses": ["to say, tell"]}], "forms": [{"form": "είπε", "tags": ["past", "third-person", "singular"]}, {"form": "είπα", "tags": ["past", "first-person", "singular"]}, {"form": "léo", "tags": ["romanization"]}]}
+{"word": "βάζω", "lang_code": "el", "pos": "verb", "senses": [{"glosses": ["to put, place"]}], "forms": [{"form": "έβαλαν", "tags": ["past", "third-person", "plural"]}, {"form": "έβαλε", "tags": ["past", "third-person", "singular"]}]}
+{"word": "χορεύω", "lang_code": "el", "pos": "verb", "senses": [{"glosses": ["to dance"]}], "forms": [{"form": "χορέψουν", "tags": ["dependent", "third-person", "plural"]}, {"form": "χόρεψε", "tags": ["past", "third-person", "singular"]}]}
+{"word": "προσθέτω", "lang_code": "el", "pos": "verb", "senses": [{"glosses": ["to add"]}], "forms": [{"form": "πρόσθεσε", "tags": ["past", "third-person", "singular"]}]}
+{"word": "κάστανο", "lang_code": "el", "pos": "noun", "etymology_text": "From Ancient Greek κάστανον.", "senses": [{"glosses": ["chestnut"]}], "forms": [{"form": "κάστανου", "tags": ["genitive", "singular"]}]}
+{"word": "κάστανα", "lang_code": "el", "pos": "noun", "senses": [{"form_of": [{"word": "κάστανο"}], "glosses": ["nominative plural of κάστανο"], "tags": ["form-of", "plural"]}]}
+{"word": "λαούτο", "lang_code": "el", "pos": "noun", "senses": [{"glosses": ["laouto (long-necked lute of Greek folk music)"]}], "forms": [{"form": "λαούτα", "tags": ["plural"]}]}
+{"word": "λύρα", "lang_code": "el", "pos": "noun", "senses": [{"glosses": ["lyre"]}, {"glosses": ["Cretan lyra, a bowed string instrument"]}]}
+{"word": "σοδειά", "lang_code": "el", "pos": "noun", "senses": [{"glosses": ["yield (of a crop)"]}]}
+{"word": "κάστανο", "lang_code": "en", "pos": "noun", "senses": [{"glosses": ["not Greek; must be ignored"]}]}
+{"word": "ζω", "lang_code": "el", "pos": "verb", "senses": [{"glosses": ["to live"]}], "forms": [{"form": "ζει", "tags": ["present", "third-person", "singular"]}]}
+{"word": "πάω", "lang_code": "el", "pos": "verb", "senses": [{"glosses": ["to go"]}], "forms": [{"form": "πάνε", "tags": ["present", "third-person", "plural"]}]}
+{"word": "νέος", "lang_code": "el", "pos": "adj", "senses": [{"glosses": ["young"]}, {"glosses": ["new"]}], "forms": [{"form": "νέοι", "tags": ["nominative", "plural", "masculine"]}]}
+{"word": "όλος", "lang_code": "el", "pos": "det", "senses": [{"glosses": ["all, whole"]}], "forms": [{"form": "όλο", "tags": ["accusative", "singular", "masculine"]}]}

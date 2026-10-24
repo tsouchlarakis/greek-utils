@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- `greek_utils.reader` and `greek-utils reader build|compare`: target words from supplied vocabulary states, adaptation prompt and checks (length, new-word ratio, targets, sentence length, numbers, names, quotations), glosses from a kaikki.org extract and Glosbe, and read-aloud transcript alignment (skips, misreads, stress pairs, pauses, reading speed)
+- Tests (`pytest`) and `scripts/check.sh` (tests plus `ruff` on the reader package)
+
 ### Changed
 
 - Packaging moved to uv: dependencies declared in `pyproject.toml`, locked in `uv.lock`; Python 3.12+ (`.python-version`)

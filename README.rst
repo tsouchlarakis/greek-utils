@@ -145,6 +145,48 @@ When pasted into Anki, it'll look like this:
 
 **Note**: Install the `Anki Table add-on <https://ankiweb.net/shared/info/1237621971>`_ so Anki can render the table within the card correctly.
 
+**Graded reading: build a daily text and check a read-aloud**:
+
+The ``reader`` commands support a short daily loop for B2 learners: read an adapted news
+text, then read it aloud. Personal inputs are passed at runtime and never stored here.
+
+``reader build`` turns an article (URL, ``.html`` or ``.txt``) into JSON with target
+words, the adaptation prompt, the checked text, per-word lemma and state, and glosses:
+
+.. code-block:: bash
+
+    $ greek-utils reader build https://example.org/article --vocab vocab.json \
+        --frequent top-lemmas.txt --kaikki kaikki.org-dictionary-Greek.jsonl \
+        --adapted adapted.txt --out today.json
+
+- ``--vocab``: ``{"words": [{"lemma": "η σοδειά", "state": "due", "gloss": "harvest"}], "frequent": [...]}``.
+  States are ``due``, ``recent``, ``lesson``, ``lapsed`` and ``known``; anything else in the text is new.
+- ``--kaikki``: the Greek Wiktionary extract from `kaikki.org <https://kaikki.org/dictionary/Greek/>`_,
+  used to map inflected forms to lemmas and for glosses. Glosses come from your own ``gloss`` first,
+  then Wiktionary, then Glosbe (only for new and target words; ``--no-glosbe`` to stay offline).
+- The adaptation is checked for length (130-170 words), new-word ratio (6-14% of content lemmas),
+  target words used (at least 8), sentence length, and numbers, names and quotations that must
+  match the source. Pass ``--adapted`` to check a text adapted elsewhere, or ``--adapter module:callable``
+  to plug in a function that takes the prompt and returns the text (one retry with the failures,
+  then an excerpt of the article). With neither, the excerpt is checked. ``--strict`` exits 1 on a failed check.
+
+``reader compare`` aligns a transcript of the read-aloud against the text. The transcript is plain
+text, or JSON with word timings and confidence (for example Whisper's ``word_timestamps`` output):
+
+.. code-block:: bash
+
+    $ greek-utils reader compare text.txt transcript.json --native-seconds 62
+    138 of 142 words read cleanly
+    121 words a minute (88% of native)
+       14 πότε: stress, heard «ποτέ»
+       37 αντιδήμαρχος: paused 2.1s
+       58 εξαιτίας: skipped
+
+Words come out clean, misread, stress (same letters, a different accented syllable), skipped,
+or unclear (a low-confidence mismatch, or a number read as words; never an error), with
+pauses of 1.5 s or more flagged. This is not pronunciation scoring: a recognizer usually
+hears a near-miss as the intended word.
+
 Changelog
 ---------
 

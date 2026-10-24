@@ -62,3 +62,22 @@ known_standard_library = ["click"]
 [tool.coverage.run]
 omit = []
 parallel = false
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+# Whitespace-separated word lists read better than list literals.
+ignore = ["SIM905"]
+
+[tool.ruff.format]
+quote-style = "single"

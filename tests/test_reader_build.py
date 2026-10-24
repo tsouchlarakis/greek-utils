@@ -1,0 +1,350 @@
+"""Vocabulary states, targets, adaptation checks, glosses and ``reader build``, on synthetic fixtures."""
+
+import json
+from pathlib import Path
+
+import pytest
+from click.testing import CliRunner
+
+from greek_utils.cli import cli
+from greek_utils.reader.adapt import (
+    ORIGIN_ADAPTER,
+    ORIGIN_EXCERPT,
+    ORIGIN_FALLBACK,
+    Rules,
+    adapt,
+    build_prompt,
+    check_adaptation,
+    excerpt,
+)
+from greek_utils.reader.article import load, parse_text
+from greek_utils.reader.build import build
+from greek_utils.reader.gloss import SOURCE_DECK, SOURCE_GLOSBE, SOURCE_WIKTIONARY, GlossResolver, KaikkiDictionary
+from greek_utils.reader.targets import select_targets
+from greek_utils.reader.text import accent_position, fold, sentences, strict, tokenize
+from greek_utils.reader.vocab import (
+    FUNCTION,
+    NAME,
+    NEW,
+    NUMBER,
+    VocabEntry,
+    Vocabulary,
+    headword,
+    headword_from_card_field,
+    new_ratio,
+)
+
+FIXTURES = Path(__file__).parent / 'fixtures'
+ARTICLE_HTML = FIXTURES / 'article.html'
+ADAPTED = FIXTURES / 'adapted.txt'
+VOCAB = FIXTURES / 'vocab.json'
+KAIKKI = FIXTURES / 'kaikki-mini.jsonl'
+
+
+@pytest.fixture(scope='module')
+def dictionary():
+    return KaikkiDictionary.load(KAIKKI)
+
+
+@pytest.fixture(scope='module')
+def vocabulary(dictionary):
+    return Vocabulary.from_file(VOCAB, lemmatizer=dictionary)
+
+
+@pytest.fixture(scope='module')
+def article():
+    return load(str(ARTICLE_HTML))
+
+
+@pytest.fixture(scope='module')
+def adapted():
+    return ADAPTED.read_text(encoding='utf-8')
+
+
+# Text
+
+
+def test_fold_and_strict():
+    assert fold('Πότε') == fold('ποτέ') == fold('ΠΟΤΕ') == 'ποτε'
+    assert strict('Πότε') != strict('ποτέ')
+    assert fold('μυς') == fold('μυσ')
+    assert strict('Ρολόι') == strict('ρολοϊ'.replace('ϊ', 'ι')) or fold('ρολόι') == fold('ρολοϊ')
+    assert accent_position('πότε') == 1 and accent_position('ποτέ') == 3 and accent_position('ΠΟΤΕ') is None
+
+
+def test_tokenize_numbers_elision_and_sentences():
+    text = 'Πήρε 14.333 βαθμούς. Απ\' την κόλαση; «Ναι», είπε: Ήταν 35χρονος.'
+    toks = tokenize(text)
+    assert [t.text for t in toks] == [
+        'Πήρε', '14.333', 'βαθμούς', "Απ'", 'την', 'κόλαση', 'Ναι', 'είπε', 'Ήταν', '35χρονος']
+    assert [t.kind for t in toks].count('number') == 2
+    assert [t.initial for t in toks] == [True, False, False, True, False, False, True, False, True, False]
+    assert len(sentences(text)) == 3
+
+
+# Vocabulary
+
+
+def test_headwords():
+    assert headword('η δοκιμασία') == 'δοκιμασία'
+    assert headword('ορεινός, -ή, -ό') == 'ορεινός'
+    assert headword('μόλις και μετά βίας') == 'μόλις και μετά βίας'
+    assert headword_from_card_field('ο κρίκος<br><br><i>rings</i> example') == 'κρίκος'
+    assert headword_from_card_field('<b>σαφής, -ής, -ές</b><br>table') == 'σαφής'
+
+
+def test_lookup_inflected_forms(vocabulary):
+    assert vocabulary.lookup('ορεινού').lemma == 'ορεινός'
+    assert vocabulary.lookup('ορεινού').state == 'due'
+    assert vocabulary.lookup('ξηρασίας').lemma == 'ξηρασία'
+    assert vocabulary.lookup('δυσκολεύτηκαν').lemma == 'δυσκολεύομαι'  # prefix stem
+    assert vocabulary.lookup('γήπεδο').state == 'lapsed'
+    assert vocabulary.lookup('είπε').state == 'known'  # kaikki form → λέω, in the frequent list
+    assert vocabulary.lookup('είπε').lemma == 'λέω'
+    assert vocabulary.lookup('λαούτα').state == NEW
+    assert vocabulary.lookup('λαούτα').lemma == 'λαούτο'
+
+
+def test_strongest_state_wins():
+    v = Vocabulary([VocabEntry('η σοδειά', 'known'), VocabEntry('σοδειά', 'due')])
+    assert v.lookup('σοδειάς').state == 'due'
+    with pytest.raises(ValueError):
+        Vocabulary([VocabEntry('σοδειά', 'sometimes')])
+
+
+def test_annotate_kinds(vocabulary):
+    kinds = {t.text: info.state for t, info in vocabulary.annotate(
+        'Ο Νίκος Παπαδάκης είπε ότι 2.000 επισκέπτες ήρθαν από το Partanen.')}
+    assert kinds['Ο'] == FUNCTION and kinds['ότι'] == FUNCTION
+    assert kinds['Νίκος'] == NAME and kinds['Παπαδάκης'] == NAME and kinds['Partanen'] == NAME
+    assert kinds['2.000'] == NUMBER
+    assert kinds['επισκέπτες'] == 'known'
+
+
+def test_new_ratio_groups_forms(vocabulary):
+    ratio, new, total = new_ratio(vocabulary.annotate('Τα κάστανα και το κάστανο. Το σχολείο.'))
+    assert new == ['κασταν'] and total == 2 and ratio == 0.5
+
+
+# Targets
+
+
+def test_targets_follow_quotas_and_prefer_the_article(vocabulary, article):
+    targets = select_targets(vocabulary, article.text)
+    by_state = {}
+    for t in targets:
+        by_state.setdefault(t.state, []).append(t.lemma)
+    # καταιγίδα is first in the due list but absent from the article, so six present
+    # due words win; ορεινός is the seventh present one and misses the quota.
+    assert by_state['due'] == ['σοδειά', 'ξηρασία', 'διοργανωτής', 'εκδήλωση', 'επισκευή', 'λαογραφικός']
+    assert by_state['recent'] == ['έσοδα', 'παραγωγός', 'εργαστήριο', 'ψητός']
+    assert by_state['lesson'] == ['σύλλογος', 'δυσκολεύομαι', 'συνάντηση']
+    assert 'γήπεδο' not in [t.lemma for t in targets]  # lapsed and known words are not targets
+    assert all(t.in_article for t in targets)
+    assert targets[0].gloss == 'harvest, crop'
+
+
+def test_absent_words_fill_the_quota_when_needed(vocabulary):
+    targets = select_targets(vocabulary, 'Ένα κείμενο χωρίς τις λέξεις.')
+    assert next(t.lemma for t in targets if t.state == 'due') == 'καταιγίδα'
+    assert not any(t.in_article for t in targets)
+
+
+# Checks
+
+
+def test_supplied_adaptation_passes_every_check(vocabulary, article, adapted):
+    targets = select_targets(vocabulary, article.text)
+    report = check_adaptation(adapted, article.text, targets, vocabulary)
+    assert report.passed, report.failures()
+    assert report.get('length').value == 150  # the title line is not counted
+    assert 0.06 <= report.get('new_ratio').value <= 0.14
+    assert len(report.get('targets').value) >= 8
+
+
+@pytest.mark.parametrize('edit, failing', [
+    (lambda t: t.replace('2.000', '3.000'), 'numbers'),
+    (lambda t: t.replace('Παπαδάκης, είπε', 'Μανωλάκης, είπε'), 'names'),
+    (lambda t: t.replace('δεν το έβαλαν κάτω', 'δεν σταμάτησαν'), 'quotes'),
+    (lambda t: t + '\n\n' + ' '.join(['Η γιορτή ήταν ωραία.'] * 6), 'length'),
+    (lambda t: t.replace('. Η εκδήλωση ξεκινά', ', και η εκδήλωση ξεκινά').replace(
+        'χωριού.\n\nΦέτος', 'χωριού, ενώ φέτος'), 'sentence_length'),
+    (lambda t: t.replace('λύρα και λαούτο', 'μαντολίνο, σαντούρι, ασκομαντούρα, βιολί, '
+                                            'τουμπερλέκι και νταούλι'), 'new_ratio'),
+    # Swap five target words for words that are already known.
+    (lambda t: t.replace('σοδειά', 'χρονιά').replace('ξηρασίας', 'καλοκαιριού').replace(
+        'διοργανωτές', 'κάτοικοι').replace('εκδήλωση', 'γιορτή').replace('επισκευή', 'μουσική'),
+     'targets'),
+])
+def test_each_check_catches_its_failure(vocabulary, article, adapted, edit, failing):
+    targets = select_targets(vocabulary, article.text)
+    report = check_adaptation(edit(adapted), article.text, targets, vocabulary)
+    failed = [r.name for r in report.results if not r.passed]
+    assert failed == [failing], report.failures()
+
+
+def test_excerpt_stays_within_length(article):
+    text = excerpt(article.text)
+    n = len(tokenize(text))
+    assert Rules().prompt_min_words <= n <= Rules().max_words
+    assert text.startswith('Για εικοσιπέμπτη συνεχή χρονιά')
+    assert text.rstrip().endswith('.')
+
+
+# Adapter
+
+
+def test_prompt_lists_targets_and_rules(vocabulary, article):
+    targets = select_targets(vocabulary, article.text)
+    prompt = build_prompt(article, targets, failures=['length: 200 words'])
+    assert 'CEFR B2' in prompt and '140-160 words' in prompt
+    assert '  - σοδειά' in prompt and 'at least 8 of these target words' in prompt
+    assert 'failed these checks' in prompt and '- length: 200 words' in prompt
+    assert article.text in prompt
+
+
+def test_adapter_retries_once_with_the_failures(vocabulary, article, adapted):
+    targets = select_targets(vocabulary, article.text)
+    prompts = []
+
+    def adapter(prompt):
+        prompts.append(prompt)
+        return adapted.replace('2.000', '3.000') if len(prompts) == 1 else adapted
+
+    result = adapt(article, targets, vocabulary, adapter)
+    assert result.origin == ORIGIN_ADAPTER and result.report.passed
+    assert len(prompts) == 2
+    assert 'failed these checks' not in prompts[0]
+    assert 'numbers: not in the source: 3.000' in prompts[1]
+    assert result.attempts[0]['failures'] and not result.attempts[1]['failures']
+
+
+def test_two_failures_fall_back_to_an_excerpt(vocabulary, article):
+    targets = select_targets(vocabulary, article.text)
+    result = adapt(article, targets, vocabulary, lambda prompt: 'Πολύ μικρό κείμενο.')
+    assert result.origin == ORIGIN_FALLBACK
+    assert result.text == excerpt(article.text)
+    assert len(result.attempts) == 2
+
+
+def test_no_adapter_gives_the_checked_excerpt(vocabulary, article):
+    result = adapt(article, select_targets(vocabulary, article.text), vocabulary)
+    assert result.origin == ORIGIN_EXCERPT and result.report.results
+
+
+# Glosses
+
+
+def test_kaikki_index(dictionary):
+    assert dictionary.candidates('κάστανα') == ['κάστανο']  # form-of entry
+    assert dictionary.candidates('έβαλαν') == ['βάζω']  # forms table
+    assert dictionary.candidates('léo') == []  # romanizations are not forms
+    entries = dictionary.lookup('κάστανο')
+    assert len(entries) == 1 and entries[0].glosses == ('chestnut',)  # the non-Greek entry is skipped
+
+
+def test_gloss_order(vocabulary, dictionary):
+    calls = []
+
+    def glosbe(word):
+        calls.append(word)
+        return ['to paint', 'to draw', 'to sketch', 'to depict'] if word.startswith('ζωγραφ') else []
+
+    resolver = GlossResolver(vocabulary, dictionary, glosbe=glosbe)
+    deck = resolver.resolve('σοδειά')
+    assert (deck.source, deck.text) == (SOURCE_DECK, 'harvest, crop')  # deck beats Wiktionary
+    lyra = resolver.resolve('λύρα')
+    assert lyra.source == SOURCE_WIKTIONARY and lyra.text == 'lyre; Cretan lyra, a bowed string instrument'
+    chestnut = resolver.resolve('κάστανα')
+    assert (chestnut.lemma, chestnut.etymology) == ('κάστανο', 'From Ancient Greek κάστανον.')
+    paint = resolver.resolve('ζωγραφίσουν')
+    assert paint.source == SOURCE_GLOSBE and paint.text == 'to paint, to draw, to sketch'
+    assert resolver.resolve('παρκάρουν', online=False) is None
+    assert resolver.resolve('παρκάρουν') is None
+    resolver.resolve('ζωγραφίσουν')
+    assert calls == ['ζωγραφίσουν', 'παρκάρουν']  # cached, and never called offline
+
+
+def test_glosbe_errors_leave_the_word_unglossed(vocabulary):
+    def broken(word):
+        raise ConnectionError('offline')
+    assert GlossResolver(vocabulary, glosbe=broken).resolve('ζωγραφίζω') is None
+
+
+# Article
+
+
+def test_article_html(article):
+    assert article.title == 'Γιορτή του κάστανου στον Ασπρόλακκο'
+    assert article.outlet == 'Παράδειγμα Ειδήσεων'
+    assert article.author == 'Συντακτική ομάδα'
+    assert article.published == '2026-10-24T08:00:00+03:00'
+    assert article.url == 'https://news.example.org/topika/giorti-kastanou'
+    assert article.text.count('\n\n') == 4  # five paragraphs; nav, figure, footer dropped
+    assert 'Φωτογραφία αρχείου' not in article.text and 'δικαιώματα' not in article.text
+
+
+def test_article_plain_text():
+    a = parse_text('Τίτλος\n\nΠρώτη παράγραφος.\n\nΔεύτερη.')
+    assert a.title == 'Τίτλος' and a.text == 'Πρώτη παράγραφος.\n\nΔεύτερη.'
+    assert parse_text('Μόνο κείμενο.').title == ''
+
+
+# Build
+
+
+def test_build_marks_tokens_and_glosses(vocabulary, dictionary, article, adapted):
+    resolver = GlossResolver(vocabulary, dictionary, glosbe=lambda w: [])
+    result = build(article, vocabulary, resolver=resolver, supplied_text=adapted)
+    assert result['adaptation']['origin'] == 'supplied'
+    assert result['adaptation']['checks']['passed']
+    tokens = {t['text']: t for t in result['tokens']}
+    assert tokens['σοδειά']['target'] and tokens['σοδειά']['state'] == 'due'
+    assert tokens['λαούτο']['state'] == NEW and not tokens['λαούτο']['target']
+    assert tokens['Παπαδάκης']['state'] == NAME
+    assert result['glosses']['σοδειά']['source'] == SOURCE_DECK
+    assert result['glosses']['λαούτο']['source'] == SOURCE_WIKTIONARY
+    assert 'Παπαδάκης' not in result['glosses']
+    assert result['source']['outlet'] == 'Παράδειγμα Ειδήσεων' and 'text' not in result['source']
+    first = result['tokens'][0]
+    assert adapted[first['start']:first['end']] == first['text']
+
+
+def test_cli_build(tmp_path):
+    out = tmp_path / 'build.json'
+    res = CliRunner().invoke(cli, [
+        'reader', 'build', str(ARTICLE_HTML), '--vocab', str(VOCAB), '--kaikki', str(KAIKKI),
+        '--adapted', str(ADAPTED), '--no-glosbe', '--out', str(out), '--strict',
+    ])
+    assert res.exit_code == 0, res.output
+    data = json.loads(out.read_text(encoding='utf-8'))
+    assert data['adaptation']['checks']['passed']
+    assert len(data['targets']) == 13
+    assert data['glosses']['κάστανο']['text'] == 'chestnut'
+
+
+def test_cli_build_strict_fails_on_a_bad_text(tmp_path):
+    bad = tmp_path / 'bad.txt'
+    bad.write_text('Πολύ μικρό κείμενο.', encoding='utf-8')
+    res = CliRunner().invoke(cli, [
+        'reader', 'build', str(ARTICLE_HTML), '--vocab', str(VOCAB), '--adapted', str(bad),
+        '--no-glosbe', '--out', str(tmp_path / 'o.json'), '--strict',
+    ])
+    assert res.exit_code == 1
+    assert 'FAIL length' in res.output
+
+
+def test_cli_build_with_adapter_module(tmp_path, monkeypatch):
+    module = tmp_path / 'fake_adapter.py'
+    module.write_text(
+        'from pathlib import Path\n'
+        f'TEXT = Path({str(ADAPTED)!r}).read_text(encoding="utf-8")\n'
+        'def adapt(prompt):\n    return TEXT\n',
+        encoding='utf-8')
+    monkeypatch.syspath_prepend(str(tmp_path))
+    res = CliRunner().invoke(cli, [
+        'reader', 'build', str(ARTICLE_HTML), '--vocab', str(VOCAB), '--kaikki', str(KAIKKI),
+        '--adapter', 'fake_adapter:adapt', '--no-glosbe', '--out', str(tmp_path / 'o.json'),
+    ])
+    assert res.exit_code == 0, res.output
+    assert 'origin: adapter; checks passed' in res.output

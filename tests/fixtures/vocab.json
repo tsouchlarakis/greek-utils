@@ -1,0 +1,31 @@
+{
+  "words": [
+    {"lemma": "η καταιγίδα", "state": "due", "gloss": "storm"},
+    {"lemma": "η σοδειά", "state": "due", "gloss": "harvest, crop"},
+    {"lemma": "η ξηρασία", "state": "due", "gloss": "drought"},
+    {"lemma": "ο διοργανωτής", "state": "due", "gloss": "organizer"},
+    {"lemma": "η εκδήλωση", "state": "due", "gloss": "event"},
+    {"lemma": "η επισκευή", "state": "due", "gloss": "repair"},
+    {"lemma": "λαογραφικός, -ή, -ό", "state": "due", "gloss": "folklore (adj.)"},
+    {"lemma": "ορεινός, -ή, -ό", "state": "due", "gloss": "mountainous"},
+    {"lemma": "τα έσοδα", "state": "recent", "gloss": "proceeds, revenue"},
+    {"lemma": "ο παραγωγός", "state": "recent", "gloss": "producer, grower"},
+    {"lemma": "το εργαστήριο", "state": "recent", "gloss": "workshop"},
+    {"lemma": "ψητός, -ή, -ό", "state": "recent", "gloss": "roasted, grilled"},
+    {"lemma": "σταθμεύω", "state": "recent", "gloss": "to park"},
+    {"lemma": "ο σύλλογος", "state": "lesson", "gloss": "association, club"},
+    {"lemma": "δυσκολεύομαι", "state": "lesson", "gloss": "to struggle, have a hard time"},
+    {"lemma": "η συνάντηση", "state": "lesson"},
+    {"lemma": "το γήπεδο", "state": "lapsed", "gloss": "sports ground, pitch"},
+    {"lemma": "η πλατεία", "state": "known", "gloss": "square (town)"},
+    {"lemma": "ζωντανός", "state": "known", "gloss": "alive; live (music)"}
+  ],
+  "frequent": [
+    "χρονιά", "κάτοικος", "χωριό", "μέτρο", "οργανώνω", "γιορτή", "ξεκινώ", "απόγευμα",
+    "φέτος", "μικρότερος", "καλοκαίρι", "πρόεδρος", "λέω", "δέντρο", "βάζω", "περιμένω",
+    "επισκέπτης", "πρόγραμμα", "υπάρχω", "γλυκό", "τοπικός", "κρασί", "μουσική", "νέος",
+    "χορεύω", "παραδοσιακός", "χορός", "παιδί", "φυσικός", "υλικό", "πάω", "παλιός",
+    "σχολείο", "κλειστός", "θέλω", "κάνω", "μουσείο", "ζω", "όλος", "χρόνος",
+    "προσθέτω", "είσοδος", "ελεύθερος", "μπορώ", "εξαιτίας"
+  ]
+}
