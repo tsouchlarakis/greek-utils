@@ -197,16 +197,20 @@ class Vocabulary:
             entry = self._by_key.get(fold(cand))
             if entry:
                 return WordInfo(entry.lemma, entry.state, entry)
-        # A form the dictionary resolves to some other lemma is not stretched to fit a
-        # learner lemma by its letters alone; only the stem match may still join them.
-        resolved = len(cands) > 1
-        entry = self._by_stem.get(stem(word)) or (None if resolved else self._by_prefix(fold(word)))
+        # When the dictionary resolves the form, its lemmas decide: a learner lemma that
+        # is not among them is a different word, however many letters the two share
+        # (κατοικία is not κατοικώ). Stems and prefixes stand in only for a form the
+        # dictionary does not know.
+        if len(cands) > 1:
+            lemma = cands[1]
+            known = any(fold(c) in self._frequent_keys for c in cands)
+            return WordInfo(lemma, 'known' if known else NEW)
+        entry = self._by_stem.get(stem(word)) or self._by_prefix(fold(word))
         if entry:
             return WordInfo(entry.lemma, entry.state, entry)
-        lemma = cands[1] if len(cands) > 1 else word.lower()
-        if any(fold(c) in self._frequent_keys for c in cands) or stem(word) in self._frequent_stems:
-            return WordInfo(lemma, 'known')
-        return WordInfo(lemma, NEW)
+        if fold(word) in self._frequent_keys or stem(word) in self._frequent_stems:
+            return WordInfo(word.lower(), 'known')
+        return WordInfo(word.lower(), NEW)
 
     def is_ordinary_word(self, word: str) -> bool:
         """

@@ -489,6 +489,18 @@ def test_a_lemmatizer_that_cannot_tell_names_does_not_exempt_them():
     assert not check_adaptation('Μανωλάκης ήρθε.', 'Ήρθε κάποιος.', [], v).get('names').passed
 
 
+def test_the_dictionary_lemma_wins_over_a_shared_stem():
+    dictionary = KaikkiDictionary([{'word': 'κατοικία', 'lang_code': 'el', 'pos': 'noun',
+                                    'senses': [{'glosses': ['residence']}]}])
+    v = Vocabulary([VocabEntry('κατοικώ', 'due', 'to live in')], lemmatizer=dictionary)
+    info = v.lookup('κατοικία')
+    assert (info.lemma, info.state, info.entry) == ('κατοικία', NEW, None)
+    targets = select_targets(v, 'Η κατοικία είναι παλιά.')
+    assert not any(t.in_article for t in targets)
+    assert targets_used(v, 'Η κατοικία είναι παλιά.', targets) == []
+    assert v.lookup('κατοικούν').state == 'due'  # a form the dictionary does not know
+
+
 def test_ambiguous_ordinals_warn_without_failing(vocabulary):
     report = check_adaptation('Ήρθε για πρώτη φορά.', 'Ήρθε ξανά.', [], vocabulary)
     numbers = report.get('numbers')
