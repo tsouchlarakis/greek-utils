@@ -426,6 +426,37 @@ def test_spelled_out_numbers_must_come_from_the_source(vocabulary):
     assert numbers('Το κόμμα μίλησε.', 'Ο πρόεδρος μίλησε.').passed  # κόμμα is a party
 
 
+def test_inflected_teens_are_spelled_out_numbers(article, adapted, vocabulary):
+    targets = select_targets(vocabulary, article.text)
+    assert check_adaptation(adapted, article.text, targets, vocabulary).get('numbers').passed
+    for teen in ('δεκατριών', 'δεκατεσσάρων', 'δεκατρείς', 'δεκατέσσερις', 'δεκατρία', 'δεκατέσσερα'):
+        edited = adapted.replace('στα 850 μέτρα', f'σε υψόμετρο {teen} μέτρων')
+        assert edited != adapted
+        report = check_adaptation(edited, article.text, targets, vocabulary)
+        assert not report.get('numbers').passed, teen
+        assert teen in report.get('numbers').value, teen
+
+
+def test_a_weekday_is_checked_across_its_cases_as_a_name(article, adapted, vocabulary):
+    targets = select_targets(vocabulary, article.text)
+    source = article.text.replace('το Σάββατο στις 6', 'το βράδυ της Τρίτης στις 6')
+    assert source != article.text
+
+    def failed(day):
+        edited = adapted.replace('το Σάββατο στις 6', f'{day} στις 6')
+        assert edited != adapted
+        return [r.name for r in check_adaptation(edited, source, targets, vocabulary).results if not r.passed]
+
+    assert failed('την Τρίτη') == []
+    assert failed('της Τρίτης') == []
+    assert failed('την Πέμπτη') == ['names']  # a changed weekday is a name that is not in the source
+    assert failed('την Τετάρτη') == ['names']
+    # A weekday absent from the source is a name, not a number.
+    absent = adapted.replace('το Σάββατο στις 6', 'την Τρίτη στις 6')
+    report = check_adaptation(absent, article.text, targets, vocabulary)
+    assert [r.name for r in report.results if not r.passed] == ['names']
+
+
 def test_quotation_must_match_whole_words(vocabulary):
     def quotes(text, source):
         return check_adaptation(text, source, [], vocabulary).get('quotes').passed

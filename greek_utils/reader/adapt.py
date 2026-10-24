@@ -19,6 +19,7 @@ from greek_utils.reader.text import (
     is_spelled_quantity,
     sentences,
     tokenize,
+    weekday,
 )
 from greek_utils.reader.vocab import FUNCTION, NAME, NUMBER, Vocabulary, new_ratio, stem
 
@@ -210,9 +211,13 @@ def check_adaptation(text: str, source: str, targets: list[Target], vocabulary: 
     # is accepted only when the source spells out the same word; anything else is
     # unverified and fails, rather than passing as a number that was never checked.
     # Ordinals that are as often plain adjectives (πρώτη φορά) only warn.
+    # A weekday is a name, not a number: Τρίτης in the source supports Τρίτη in the text.
+    source_weekdays = {weekday(t.text) for t in source_tokens if t.kind == 'word'} - {None}
     spelled, advisory = set(), set()
     for t in tokenize(text):
-        if t.kind == 'word' and is_spelled_quantity(t.text) and t.folded not in source_keys:
+        if t.kind != 'word' or (weekday(t.text) and (weekday(t.text) in source_weekdays or t.capitalized)):
+            continue
+        if is_spelled_quantity(t.text) and t.folded not in source_keys:
             (advisory if is_advisory_quantity(t.text) else spelled).add(t.text.lower())
     spelled, advisory = sorted(spelled), sorted(advisory)
     results.append(CheckResult(
@@ -232,6 +237,11 @@ def check_adaptation(text: str, source: str, targets: list[Target], vocabulary: 
                          if t.kind == 'word' and t.capitalized and t.folded not in FUNCTION_WORDS}
     bad_names = []
     for tok, info in vocabulary.annotate(text):
+        day = weekday(tok.text) if tok.kind == 'word' else None
+        if day and tok.capitalized:
+            if day not in source_weekdays:
+                bad_names.append(tok.text)
+            continue
         if tok.kind == NUMBER or not _is_name_candidate(tok, info, vocabulary):
             continue
         if tok.folded in source_keys or stem(tok.text) in source_name_stems:

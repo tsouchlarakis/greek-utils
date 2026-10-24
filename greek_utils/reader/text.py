@@ -86,6 +86,8 @@ def accent_position(word: str) -> int | None:
 # that inflected cardinals (χιλίων, διακοσίους, τριών) and ordinals (εικοσιπέμπτη,
 # τριακοστή) are numbers as much as their dictionary forms.
 _UNITS = 'ενα|ενασ|μια|μια|δυο|τρια|τρεισ|τεσσερα|τεσσερισ|πεντε|εξι|επτα|εφτα|οκτω|οχτω|εννεα|εννια'
+# The inflected 3 and 4 that compound numbers keep: δεκατριών, εικοσιτεσσάρων.
+_UNITS_INFL = rf'{_UNITS}|τριων|τεσσαρων'
 _TENS = 'εικοσι|τριαντα|σαραντα|πενηντα|εξηντα|εβδομηντα|ογδοντα|ενενηντα'
 _ORDINAL_UNITS = 'πρωτ|δευτερ|τριτ|τεταρτ|πεμπτ|εκτ|εβδομ|ογδο|εν{1,2}ατ'
 _ORDINAL_STEMS = (
@@ -96,8 +98,8 @@ _ORDINAL_STEMS = (
 _ADJ_ENDING = 'οσ|ου|ο|ον|οι|ουσ|ων|ε|η|ησ|εσ|α'
 _NUMBER_WORD_RE = re.compile(
     r'^(?:'
-    rf'μηδεν|{_UNITS}|τριων|τεσσαρων|δεκα|εντεκα|δωδεκα|δεκα(?:{_UNITS})'
-    rf'|{_TENS}|(?:{_TENS})(?:{_UNITS})|εκατο|εκατον'
+    rf'μηδεν|{_UNITS}|τριων|τεσσαρων|δεκα|εντεκα|δωδεκα|δεκα(?:{_UNITS_INFL})'
+    rf'|{_TENS}|(?:{_TENS})(?:{_UNITS_INFL})|εκατο|εκατον'
     rf'|(?:δια|τρια|τετρα|πεντα|εξα|επτα|εφτα|οκτα|οχτα|εννια|εννεα)κοσι(?:{_ADJ_ENDING})'
     rf'|χιλι(?:{_ADJ_ENDING}|αδα|αδεσ|αδων)|(?:δισ)?εκατομμυρι(?:ο|α|ου|ων)'
     r'|δεκαδ(?:α|εσ|ων)|εκατονταδ(?:α|εσ|ων)'
@@ -117,6 +119,25 @@ NOT_NUMBER_WORDS = frozenset(strict(w) for w in 'εκτός'.split())
 # sequence. Telling the senses apart needs a parser, so a mismatch is reported as an
 # advisory warning rather than a failure.
 _ADVISORY_ORDINAL_RE = re.compile(rf'^(?:πρωτ|δευτερ)(?:{_ADJ_ENDING})$')
+
+
+# Weekday names, folded, keyed to one canonical form per day. Τρίτη, Τετάρτη, Πέμπτη and
+# Δευτέρα collide with the ordinals, but a weekday is a name: it is checked against the
+# source's weekday in any case (Τρίτης → Τρίτη), never as a number.
+_WEEKDAYS = {
+    'δευτερα': 'δευτερα', 'δευτερασ': 'δευτερα',
+    'τριτη': 'τριτη', 'τριτησ': 'τριτη',
+    'τεταρτη': 'τεταρτη', 'τεταρτησ': 'τεταρτη',
+    'πεμπτη': 'πεμπτη', 'πεμπτησ': 'πεμπτη',
+    'παρασκευη': 'παρασκευη', 'παρασκευησ': 'παρασκευη',
+    'σαββατο': 'σαββατο', 'σαββατου': 'σαββατο',
+    'κυριακη': 'κυριακη', 'κυριακησ': 'κυριακη',
+}
+
+
+def weekday(word: str) -> str | None:
+    """The canonical (folded, nominative) weekday a word is a form of, or None."""
+    return _WEEKDAYS.get(fold(word))
 
 
 def is_number_word(word: str) -> bool:
