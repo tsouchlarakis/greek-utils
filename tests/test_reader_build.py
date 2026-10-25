@@ -457,6 +457,17 @@ def test_a_weekday_is_checked_across_its_cases_as_a_name(article, adapted, vocab
     assert [r.name for r in report.results if not r.passed] == ['names']
 
 
+def test_a_lowercase_ordinal_is_checked_even_when_its_weekday_is_in_the_source(article, adapted, vocabulary):
+    targets = select_targets(vocabulary, article.text)
+    source = article.text.replace('το Σάββατο στις 6', 'το βράδυ της Τρίτης στις 6')
+    edited = adapted.replace('το Σάββατο στις 6', 'την Τρίτη στις 6').replace('εικοσιπέμπτη', 'τρίτη')
+    assert edited != adapted and 'τρίτη χρονιά' in edited
+    report = check_adaptation(edited, source, targets, vocabulary)
+    assert not report.get('numbers').passed  # third year instead of twenty-fifth year
+    assert 'τρίτη' in report.get('numbers').value or 'τρίτη' in (report.get('numbers').warning or '')
+    assert report.get('names').passed  # the capitalized Τρίτη is still supported by the source
+
+
 def test_quotation_must_match_whole_words(vocabulary):
     def quotes(text, source):
         return check_adaptation(text, source, [], vocabulary).get('quotes').passed

@@ -211,11 +211,13 @@ def check_adaptation(text: str, source: str, targets: list[Target], vocabulary: 
     # is accepted only when the source spells out the same word; anything else is
     # unverified and fails, rather than passing as a number that was never checked.
     # Ordinals that are as often plain adjectives (πρώτη φορά) only warn.
-    # A weekday is a name, not a number: Τρίτης in the source supports Τρίτη in the text.
+    # A capitalized weekday is a name, not a number (the names check compares it with the
+    # source's weekday in any case). A lowercase τρίτη or πέμπτη is as often an ordinal
+    # (τρίτη φορά), so it is always checked as a word, whatever weekdays the source names.
     source_weekdays = {weekday(t.text) for t in source_tokens if t.kind == 'word'} - {None}
     spelled, advisory = set(), set()
     for t in tokenize(text):
-        if t.kind != 'word' or (weekday(t.text) and (weekday(t.text) in source_weekdays or t.capitalized)):
+        if t.kind != 'word' or (t.capitalized and weekday(t.text)):
             continue
         if is_spelled_quantity(t.text) and t.folded not in source_keys:
             (advisory if is_advisory_quantity(t.text) else spelled).add(t.text.lower())
