@@ -12,6 +12,7 @@ Two comparison keys are used throughout the reader:
 import re
 import unicodedata
 from dataclasses import dataclass
+from itertools import pairwise
 
 APOSTROPHES = "'’ʼ`"
 
@@ -234,7 +235,7 @@ FUNCTION_WORDS = frozenset(fold(w) for w in '''
     ο η το οι τα του της των τον την τη τους τις
     ένας ένα μια μία ενός μιας έναν
     στο στη στην στον στα στου στης στων στους στις σε σ' με για από προς χωρίς ως
-    μέχρι ώς παρά κατά μετά πριν πάνω κάτω μέσα έξω δίπλα
+    μέχρι ώς παρά κατά μετά πριν πάνω κάτω μέσα έξω δίπλα λόγω εξαιτίας μέσω
     και κι ή ούτε ουδέ αλλά όμως ενώ αν εάν να θα δεν δε μην μη ας ότι πως πώς
     που πού όταν καθώς επειδή γιατί αφού ώστε ενώ όπως όπου
     εγώ εσύ αυτός αυτή αυτό αυτοί αυτές αυτά εμείς εσείς
@@ -245,3 +246,34 @@ FUNCTION_WORDS = frozenset(fold(w) for w in '''
     οποίος οποία οποίο οποίου οποίας οποίων οποίους οποίες
     πολύ πιο ήδη ακόμα ακόμη επίσης μόνο έτσι εδώ εκεί τώρα όχι ναι
 '''.split())
+
+# Multi-word function phrases (compound prepositions and conjunctions), written as they
+# appear. Their words are function words inside the phrase even when a word alone is a
+# content word: σύμφωνα in "σύμφωνα με" is "according to", not the plural of σύμφωνο
+# ("consonant").
+FUNCTION_PHRASES = tuple(
+    tuple(fold(w) for w in phrase.split())
+    for phrase in '''
+        σύμφωνα με | όσον αφορά | όσο αφορά | παρά το ότι | παρά το γεγονός ότι
+        | παρόλο που | παρ' όλο που | παρόλα αυτά | παρ' όλα αυτά | σχετικά με
+        | σε σχέση με | ανάλογα με | εκτός από | αντί για | καθώς και | έτσι ώστε
+        | προκειμένου να | εν τω μεταξύ | στο μεταξύ | ούτως ή άλλως
+    '''.split('|')
+)
+
+
+def function_phrase_indexes(text: str, tokens: list[Token]) -> set[int]:
+    """
+    Indexes of the tokens that belong to a FUNCTION_PHRASES phrase: consecutive words of
+    one sentence, separated by nothing but whitespace.
+    """
+    found: set[int] = set()
+    for i in range(len(tokens)):
+        for phrase in FUNCTION_PHRASES:
+            span = tokens[i:i + len(phrase)]
+            if (len(span) == len(phrase)
+                    and all(t.kind == 'word' and t.folded == w for t, w in zip(span, phrase))
+                    and all(a.sentence == b.sentence and not text[a.end:b.start].strip()
+                            for a, b in pairwise(span))):
+                found.update(range(i, i + len(phrase)))
+    return found

@@ -553,3 +553,89 @@ def test_ambiguous_ordinals_warn_without_failing(vocabulary):
     assert check_adaptation('Ήρθε για πρώτη φορά.', 'Πρώτη φορά.', [], vocabulary).get('numbers').warning is None
     # εκτός ("except") folds like έκτος ("sixth") but is not a number.
     assert check_adaptation('Όλοι εκτός από τον Νίκο.', 'Όλοι.', [], vocabulary).get('numbers').passed
+
+
+# Function phrases and sense choice (greek-utils#18)
+
+ISSUE_18_RECORDS = [
+    {'word': 'σύμφωνο', 'lang_code': 'el', 'pos': 'noun', 'senses': [{'glosses': ['consonant']}],
+     'forms': [{'form': 'σύμφωνα', 'tags': ['nominative', 'plural']}]},
+    {'word': 'ανάρτηση', 'lang_code': 'el', 'pos': 'noun', 'senses': [
+        {'glosses': ['hanging, suspending (of a picture, etc)'], 'tags': ['feminine']},
+        {'glosses': ['suspension (of machinery, motor vehicles, etc)'], 'tags': ['feminine'],
+         'topics': ['automotive', 'transport', 'vehicles']},
+        {'glosses': ['post (display message)'], 'tags': ['feminine', 'figuratively']},
+    ], 'forms': [{'form': 'ανάρτησή', 'tags': ['nominative', 'singular']}]},
+    {'word': 'λύρα', 'lang_code': 'el', 'pos': 'noun', 'senses': [
+        {'glosses': ['pound (old currency)'], 'tags': ['historical']},
+        {'glosses': ['lyre']},
+    ]},
+]
+
+
+@pytest.fixture
+def issue_18_vocabulary():
+    dictionary = KaikkiDictionary(ISSUE_18_RECORDS)
+    vocabulary = Vocabulary(
+        [VocabEntry('σύμφωνο', 'due', 'consonant'), VocabEntry('ανακοίνωση', 'due', 'announcement')],
+        lemmatizer=dictionary,
+    )
+    return vocabulary, dictionary
+
+
+def test_symfona_me_is_a_function_phrase(issue_18_vocabulary):
+    vocabulary, _ = issue_18_vocabulary
+    text = 'Σύμφωνα με την ανακοίνωση, η κυβέρνηση θα αποφασίσει. Τα σύμφωνα της λέξης είναι δύο.'
+    states = [(t.text, info.state) for t, info in vocabulary.annotate(text)]
+    assert states[:2] == [('Σύμφωνα', FUNCTION), ('με', FUNCTION)]
+    # Outside the phrase it is still the plural of σύμφωνο, the deck word.
+    assert ('σύμφωνα', 'due') in states
+    # A comma between the words breaks the phrase.
+    broken = vocabulary.annotate('Μίλησε για τα σύμφωνα, με χαρά.')
+    assert [info.state for t, info in broken if t.text == 'σύμφωνα'] == ['due']
+
+
+def test_symfona_me_is_never_a_target(issue_18_vocabulary):
+    vocabulary, _ = issue_18_vocabulary
+    text = 'Σύμφωνα με τον υπουργό, το έργο θα ολοκληρωθεί σύντομα.'
+    targets = select_targets(vocabulary, text, quotas=(('due', 5),))
+    assert {t.lemma: t.in_article for t in targets}['σύμφωνο'] is False
+
+
+def test_single_word_prepositions_are_function_words(issue_18_vocabulary):
+    vocabulary, _ = issue_18_vocabulary
+    annotated = vocabulary.annotate('Λόγω της κακοκαιρίας, τα σχολεία έκλεισαν μέσω απόφασης εξαιτίας του ανέμου.')
+    assert {t.text: info.state for t, info in annotated if t.folded in {'λογω', 'μεσω', 'εξαιτιασ'}} == {
+        'Λόγω': FUNCTION, 'μέσω': FUNCTION, 'εξαιτίας': FUNCTION}
+
+
+def test_gloss_prefers_the_sense_the_context_points_to(issue_18_vocabulary):
+    vocabulary, dictionary = issue_18_vocabulary
+    social = 'Σε ανάρτησή του στο Facebook ο δήμαρχος έγραψε ότι το έργο τελείωσε.'
+    gloss = GlossResolver(vocabulary, dictionary).resolve('ανάρτηση', social, online=False)
+    assert gloss.text.startswith('post (display message)')
+    speech = 'Σε ανάρτησή του ο υπουργός ανέφερε ότι η συμφωνία είναι κοντά.'
+    gloss = GlossResolver(vocabulary, dictionary).resolve('ανάρτηση', speech, online=False)
+    assert gloss.text.startswith('post (display message)')
+    # Without a cue, Wiktionary's order stands.
+    plain = 'Η ανάρτηση του πίνακα στον τοίχο πήρε ώρα.'
+    gloss = GlossResolver(vocabulary, dictionary).resolve('ανάρτηση', plain, online=False)
+    assert gloss.text.startswith('hanging, suspending')
+
+
+def test_gloss_puts_historical_senses_last(issue_18_vocabulary):
+    vocabulary, dictionary = issue_18_vocabulary
+    gloss = GlossResolver(vocabulary, dictionary).resolve('λύρα', online=False)
+    assert gloss.text == 'lyre; pound (old currency)'
+
+
+def test_build_glosses_anartisi_as_post_and_skips_symfona(issue_18_vocabulary):
+    vocabulary, dictionary = issue_18_vocabulary
+    text = ('Σύμφωνα με την ανακοίνωση, ο δήμαρχος μίλησε. '
+            'Σε ανάρτησή του στο Facebook έγραψε ότι το έργο τελείωσε.')
+    result = build(parse_text(text), vocabulary, GlossResolver(vocabulary, dictionary),
+                   supplied_text=text)
+    tokens = {t['text']: t for t in result['tokens']}
+    assert tokens['Σύμφωνα']['state'] == FUNCTION and not tokens['Σύμφωνα']['target']
+    assert 'σύμφωνο' not in result['glosses']
+    assert result['glosses']['ανάρτηση']['text'].startswith('post (display message)')

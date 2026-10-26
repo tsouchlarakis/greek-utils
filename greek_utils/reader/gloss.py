@@ -9,6 +9,7 @@ dictionary entries.
 """
 
 import json
+import re
 import time
 from collections import defaultdict
 from collections.abc import Callable, Iterable
@@ -26,6 +27,35 @@ SOURCE_CONTEXT = 'context'
 # kaikki form tags that are not inflected forms of the word.
 SKIP_FORM_TAGS = {'romanization', 'table-tags', 'inflection-template', 'class', 'canonical'}
 
+# Senses a reader of current text rarely needs; they go after the others.
+RARE_SENSE_TAGS = frozenset({'archaic', 'obsolete', 'rare', 'dated', 'historical', 'dialectal'})
+
+
+@dataclass(frozen=True)
+class SenseCue:
+    """
+    Context words (folded word beginnings) that make senses with these English words,
+    or these kaikki topics, the likely ones. Wiktionary lists senses in historical or
+    literal order, so its first sense is often not the one a news text means.
+    """
+    context: re.Pattern
+    sense: re.Pattern
+    topics: frozenset[str] = frozenset()
+
+
+SENSE_CUES = (
+    # Social media and reported speech: ανάρτηση is a post, not a hanging.
+    SenseCue(
+        context=re.compile(
+            r'\b(?:facebook|instagram|twitter|tiktok|youtube|linkedin|telegram|threads|x\b'
+            r'|μεσα κοινωνικησ δικτυωσησ|social media|διαδικτ|ιστοσελιδ|ιστολογ|λογαριασμ'
+            r'|δημοσιευ|σχολιασ|ανεφερ|αναφερ|εγραψ|γραφει|σημειωσ|σημειων|δηλωσ|δηλων|τονισ)'
+        ),
+        sense=re.compile(r'\b(?:post|posting|tweet|online|internet|blog|message|statement|announcement)\b'),
+        topics=frozenset({'internet', 'computing', 'social-media'}),
+    ),
+)
+
 
 @dataclass(frozen=True)
 class Gloss:
@@ -40,11 +70,37 @@ class Gloss:
 
 
 @dataclass(frozen=True)
+class Sense:
+    gloss: str
+    tags: frozenset[str] = frozenset()
+    topics: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True)
 class DictEntry:
     word: str
     pos: str | None
     glosses: tuple[str, ...]
     etymology: str | None
+    senses: tuple[Sense, ...] = ()
+
+
+def rank_senses(entries: list[DictEntry], context: str = '') -> list[str]:
+    """
+    The glosses of the entries, most likely first: a sense the context points to (see
+    SENSE_CUES), then the rest in Wiktionary's order, rare and archaic senses last.
+    """
+    key = fold(context)
+    cues = [cue for cue in SENSE_CUES if key and cue.context.search(key)]
+    ranked = []
+    for entry in entries:
+        senses = entry.senses or tuple(Sense(g) for g in entry.glosses)
+        for sense in senses:
+            topics = {t.lower() for t in sense.topics}
+            cued = any(cue.sense.search(sense.gloss.lower()) or cue.topics & topics for cue in cues)
+            rare = bool(RARE_SENSE_TAGS & sense.tags)
+            ranked.append((not cued, rare, len(ranked), sense.gloss))
+    return [gloss for *_, gloss in sorted(ranked)]
 
 
 class KaikkiDictionary:
@@ -84,6 +140,7 @@ class KaikkiDictionary:
         # Proper names are tagged pos "name"; a capitalized headword is one too.
         lexical = rec.get('pos') != 'name' and not word[:1].isupper()
         glosses = []
+        senses = []
         for sense in rec.get('senses', []):
             form_of = sense.get('form_of') or sense.get('alt_of')
             if form_of:
@@ -93,12 +150,18 @@ class KaikkiDictionary:
                 continue
             if sense.get('glosses'):
                 glosses.append(sense['glosses'][-1])
+                senses.append(Sense(
+                    sense['glosses'][-1],
+                    frozenset(sense.get('tags', [])),
+                    frozenset(sense.get('topics', [])),
+                ))
         if glosses:
             self._entries[fold(word)].append(DictEntry(
                 word=word,
                 pos=rec.get('pos'),
                 glosses=tuple(glosses),
                 etymology=rec.get('etymology_text') or None,
+                senses=tuple(senses),
             ))
             self._add_form(word, word, lexical)
             for form in rec.get('forms', []):
@@ -141,7 +204,11 @@ class GlossResolver:
         self._glosbe_calls = 0
 
     def resolve(self, lemma: str, context: str = '', online: bool = True) -> Gloss | None:
-        """The first gloss found; ``online=False`` skips Glosbe and the explainer."""
+        """
+        The first gloss found; ``online=False`` skips Glosbe and the explainer. A
+        dictionary gloss lists the senses ``context`` points to first. Glosbe is not used
+        to rank senses: its top translation is no better a guess (ανάρτηση: suspension).
+        """
         key = (fold(lemma), online)
         if key not in self._cache:
             self._cache[key] = self._resolve(lemma, context, online)
@@ -162,7 +229,7 @@ class GlossResolver:
                         break
             if entries:
                 first = entries[0]
-                senses = [g for e in entries for g in e.glosses][: self.max_glosses]
+                senses = rank_senses(entries, context)[: self.max_glosses]
                 return Gloss(first.word, '; '.join(senses), SOURCE_WIKTIONARY, first.pos, first.etymology)
 
         if not online:

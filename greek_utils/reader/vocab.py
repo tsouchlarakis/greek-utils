@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from greek_utils.reader.text import FUNCTION_WORDS, Token, fold, is_greek, tokenize
+from greek_utils.reader.text import FUNCTION_WORDS, Token, fold, function_phrase_indexes, is_greek, tokenize
 
 # Learner states, strongest first. When a word matches several entries, the first
 # state in this order wins.
@@ -227,11 +227,13 @@ class Vocabulary:
         """Every token of a text with its lemma and state."""
         tokens = tokenize(text)
         names = {t.folded for t in tokens if t.kind == 'word' and t.capitalized and not t.initial}
+        in_phrase = function_phrase_indexes(text, tokens)
         out = []
-        for t in tokens:
+        for i, t in enumerate(tokens):
             if t.kind == NUMBER:
                 info = WordInfo(t.text, NUMBER)
-            elif t.folded in FUNCTION_WORDS or fold(t.text.rstrip("'’ʼ")) in FUNCTION_WORDS:
+            elif (i in in_phrase or t.folded in FUNCTION_WORDS
+                  or fold(t.text.rstrip("'’ʼ")) in FUNCTION_WORDS):
                 info = WordInfo(t.text.lower(), FUNCTION)
             elif t.capitalized and (not t.initial or t.folded in names) and not self._is_listed(t.text):
                 info = WordInfo(t.text, NAME)
