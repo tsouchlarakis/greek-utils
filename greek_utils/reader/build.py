@@ -22,11 +22,11 @@ def build(
     sources are consulted only for new and target words; every other word gets an
     offline gloss when one exists.
     """
-    targets = select_targets(vocabulary, article.text)
+    targets = select_targets(vocabulary, article.text, include_new=rules.count_unmastered)
     if supplied_text is not None:
         adaptation = check_supplied(supplied_text, article, targets, vocabulary, rules)
     else:
-        adaptation = adapt(article, targets, vocabulary, adapter, rules)
+        adaptation = adapt(article, targets, vocabulary, adapter, rules, max_attempts=rules.max_attempts)
 
     target_keys = {fold(t.lemma) for t in targets}
     text_sentences = sentences(adaptation.text)

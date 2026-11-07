@@ -639,3 +639,19 @@ def test_build_glosses_anartisi_as_post_and_skips_symfona(issue_18_vocabulary):
     assert tokens['Σύμφωνα']['state'] == FUNCTION and not tokens['Σύμφωνα']['target']
     assert 'σύμφωνο' not in result['glosses']
     assert result['glosses']['ανάρτηση']['text'].startswith('post (display message)')
+
+
+def test_unmastered_ratio_counts_all_learning_states_even_when_frequent():
+    states = ('due', 'recent', 'lapsed', 'learning', 'lesson', 'new')
+    lemmas = ('σχολείο', 'χωριό', 'δέντρο', 'βιβλίο', 'κήπος', 'τραπέζι')
+    v = Vocabulary([VocabEntry(word, state) for word, state in zip(lemmas, states)], frequent=lemmas)
+    annotated = v.annotate(' '.join(lemmas) + ' και το σπίτι.')
+    assert new_ratio(annotated, count_unmastered=True)[0] == 1.0
+    assert new_ratio(annotated)[0] < 1.0
+    assert Rules().count_unmastered is False
+
+
+def test_unstudied_words_can_be_targets_only_when_requested():
+    v = Vocabulary([VocabEntry('σχολείο', 'new')])
+    assert select_targets(v, 'Το σχολείο.') == []
+    assert [t.state for t in select_targets(v, 'Το σχολείο.', include_new=True)] == ['new']

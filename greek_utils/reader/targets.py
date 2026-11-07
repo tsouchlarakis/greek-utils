@@ -30,12 +30,15 @@ def select_targets(
     vocabulary: Vocabulary,
     article_text: str,
     quotas: tuple[tuple[str, int], ...] = DEFAULT_QUOTAS,
+    *, include_new: bool = False,
 ) -> list[Target]:
     """
     Up to the quota of each state, keeping the caller's order within a state (put the
     most overdue or most recent first) but preferring words already in the article,
     which the adaptation can then keep naturally.
     """
+    if include_new:
+        quotas = (*quotas, ('new', 2))
     present = article_lemmas(vocabulary, article_text)
     chosen: list[Target] = []
     seen: set[str] = set()

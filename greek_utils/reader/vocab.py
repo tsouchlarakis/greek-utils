@@ -30,7 +30,7 @@ from greek_utils.reader.text import FUNCTION_WORDS, Token, fold, function_phrase
 
 # Learner states, strongest first. When a word matches several entries, the first
 # state in this order wins.
-STATES = ('due', 'recent', 'lesson', 'lapsed', 'known')
+STATES = ('due', 'recent', 'lesson', 'lapsed', 'learning', 'new', 'known')
 NEW = 'new'
 
 # Token kinds that are not vocabulary.
@@ -146,6 +146,8 @@ class Vocabulary:
             self._add(self._by_key, fold(entry.lemma), entry)
             if ' ' not in entry.lemma:
                 self._add(self._by_stem, stem(entry.lemma), entry)
+        self.frequent = tuple(frequent)
+        frequent = self.frequent
         self._frequent_keys = {fold(headword(w)) for w in frequent}
         self._frequent_stems = {stem(headword(w)) for w in frequent if ' ' not in w.strip()}
         self.lemmatizer = lemmatizer
@@ -245,18 +247,22 @@ class Vocabulary:
         return out
 
     def _is_listed(self, word: str) -> bool:
-        return self.lookup(word).state != NEW
+        info = self.lookup(word)
+        return info.entry is not None or info.state != NEW
 
 
-def new_ratio(annotated: list[tuple[Token, WordInfo]]) -> tuple[float, list[str], int]:
-    """Share of distinct content lemmas that are new, the new lemmas, and the lemma count."""
+def new_ratio(annotated: list[tuple[Token, WordInfo]], *, count_unmastered: bool = False) -> tuple[float, list[str], int]:
+    """Share of distinct content lemmas new (or all unmastered), their keys and count.
+
+    count_unmastered gives every non-known state full weight, including review targets.
+    A known occurrence of the same stem wins; function words and names are excluded."""
     is_new: dict[str, bool] = {}
     for _, info in annotated:
         if info.is_vocab:
             # Unresolved forms keep their surface as the lemma; the stem groups them
             # (κάστανα, κάστανου).
             key = stem(info.lemma)
-            is_new[key] = is_new.get(key, True) and info.state == NEW
+            is_new[key] = is_new.get(key, True) and (info.state != 'known' if count_unmastered else info.state == NEW)
     new = sorted(k for k, n in is_new.items() if n)
     total = len(is_new)
     return (len(new) / total if total else 0.0), new, total

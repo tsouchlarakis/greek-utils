@@ -41,6 +41,8 @@ class Rules:
     min_new_ratio: float = 0.06
     max_new_ratio: float = 0.14
     min_targets: int = 8
+    count_unmastered: bool = False
+    max_attempts: int = 2
     # Level heuristics: B2 news adaptations keep sentences short.
     max_mean_sentence_words: float = 20.0
     max_sentence_words: int = 32
@@ -176,11 +178,14 @@ def check_adaptation(text: str, source: str, targets: list[Target], vocabulary: 
         f'{n_words} words (want {rules.min_words}-{rules.max_words})', n_words,
     ))
 
-    ratio, new, total = new_ratio(annotated)
+    ratio, new, total = new_ratio(annotated, count_unmastered=rules.count_unmastered)
     results.append(CheckResult(
         'new_ratio', rules.min_new_ratio <= ratio <= rules.max_new_ratio,
         f'{len(new)} of {total} content lemmas new ({ratio:.0%}; want '
-        f'{rules.min_new_ratio:.0%}-{rules.max_new_ratio:.0%})', round(ratio, 4),
+        f'{rules.min_new_ratio:.0%}-{rules.max_new_ratio:.0%}); unfamiliar vocabulary: '
+        + ', '.join(sorted({info.lemma for _, info in annotated
+                            if info.is_vocab and (info.state != 'known' if rules.count_unmastered else info.state == 'new')})),
+        round(ratio, 4),
     ))
 
     used = targets_used(vocabulary, body, targets)
@@ -327,6 +332,17 @@ def adapt(article: Article, targets: list[Target], vocabulary: Vocabulary,
     failures = None
     for _ in range(max_attempts):
         prompt = build_prompt(article, targets, rules, failures)
+        if rules.count_unmastered:
+            familiar = sorted({info.lemma for _, info in vocabulary.annotate(article.text)
+                               if info.state == 'known'})
+            prompt = prompt.replace('Keep every fact, number, date and name exactly as in the article. Invent nothing.',
+                                    'Keep the main facts accurate. Omit secondary details to simplify. Invent nothing.')
+            prompt += (f'\nAt most {rules.max_new_ratio:.0%} of distinct content lemmas may be unfamiliar. '
+                       'Due, recent, lapsed, learning, lesson and new words all count as unfamiliar. '
+                       'Use simple everyday language; omit secondary details rather than use difficult synonyms. '
+                       'Familiar source vocabulary: ' + ', '.join(familiar) + '\n')
+        if rules.count_unmastered and attempts:
+            prompt += '\nRevise this previous draft to fix the listed failures:\n' + attempts[-1]['text']
         text = adapter(prompt).strip()
         report = check(text)
         attempts.append({'text': text, 'failures': report.failures()})
