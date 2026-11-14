@@ -10,6 +10,7 @@ from os.path import dirname, join
 import requests
 from bs4 import BeautifulSoup
 
+from greek_utils.conjugation_checks import conjugation_failures
 from greek_utils.helpers import logger_setup
 
 
@@ -144,6 +145,13 @@ def verb_flashcard(verb: str, conjugations_json: str, num_examples: int, stdout:
         verb_conjugations = json.load(f)
 
     verb = verb.lower()
+    failures = conjugation_failures(verb_conjugations[verb]['conjugation']) if verb in verb_conjugations else []
+    if failures:
+        # greek-utils#19: the scraped table has cells that fail the paradigm checks and the
+        # repair had no source for them. Refuse rather than put a wrong form on a card;
+        # callers (the KB importer) fall back to another table.
+        reasons = '; '.join(f'{tense} {i + 1}: {why}' for tense, i, why in failures[:3])
+        raise click.ClickException(f"'{verb}' has a conjugation table that fails paradigm checks ({reasons})")
     if verb in verb_conjugations:
         conjugation_table_str = conjugation_to_html(
             conj=verb_conjugations[verb]['conjugation'],
