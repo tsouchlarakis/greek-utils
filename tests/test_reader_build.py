@@ -655,3 +655,22 @@ def test_unstudied_words_can_be_targets_only_when_requested():
     v = Vocabulary([VocabEntry('σχολείο', 'new')])
     assert select_targets(v, 'Το σχολείο.') == []
     assert [t.state for t in select_targets(v, 'Το σχολείο.', include_new=True)] == ['new']
+
+
+def test_strict_retries_revise_the_draft_closest_to_passing(vocabulary, article, adapted):
+    """ops#537: a revision that gets worse is not the next base; the best draft so far is."""
+    targets = select_targets(vocabulary, article.text)
+    rules = Rules(count_unmastered=True, min_new_ratio=0.0, max_new_ratio=1.0)
+    close = adapted.replace('2.000', '3.000')  # one failing check
+    worse = 'Πολύ μικρό κείμενο.'  # several
+    drafts, prompts = [close, worse, adapted], []
+
+    def adapter(prompt):
+        prompts.append(prompt)
+        return drafts[len(prompts) - 1]
+
+    result = adapt(article, targets, vocabulary, adapter, rules, max_attempts=3)
+    assert result.origin == ORIGIN_ADAPTER
+    revised = prompts[2].split('Revise this previous draft to fix the listed failures:\n', 1)[1]
+    assert revised == close.strip()
+    assert 'numbers: not in the source: 3.000' in prompts[2]

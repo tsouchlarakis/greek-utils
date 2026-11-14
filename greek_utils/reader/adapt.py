@@ -315,6 +315,14 @@ class Adaptation:
         }
 
 
+def _distance(report: CheckReport, rules: Rules) -> tuple[int, float]:
+    """How far a failed draft is from passing: its failing checks, then how far its
+    unfamiliar share lies outside the allowed band."""
+    ratio = report.get('new_ratio').value
+    outside = max(rules.min_new_ratio - ratio, ratio - rules.max_new_ratio, 0.0)
+    return len(report.failures()), outside
+
+
 def adapt(article: Article, targets: list[Target], vocabulary: Vocabulary,
           adapter: Adapter | None = None, rules: Rules = DEFAULT_RULES, max_attempts: int = 2) -> Adaptation:
     """
@@ -329,6 +337,8 @@ def adapt(article: Article, targets: list[Target], vocabulary: Vocabulary,
         return Adaptation(text, ORIGIN_EXCERPT, check(text))
 
     attempts = []
+    scores: list[tuple[int, float]] = []
+    best = 0
     failures = None
     for _ in range(max_attempts):
         prompt = build_prompt(article, targets, rules, failures)
@@ -342,13 +352,17 @@ def adapt(article: Article, targets: list[Target], vocabulary: Vocabulary,
                        'Use simple everyday language; omit secondary details rather than use difficult synonyms. '
                        'Familiar source vocabulary: ' + ', '.join(familiar) + '\n')
         if rules.count_unmastered and attempts:
-            prompt += '\nRevise this previous draft to fix the listed failures:\n' + attempts[-1]['text']
+            prompt += '\nRevise this previous draft to fix the listed failures:\n' + attempts[best]['text']
         text = adapter(prompt).strip()
         report = check(text)
         attempts.append({'text': text, 'failures': report.failures()})
         if report.passed:
             return Adaptation(text, ORIGIN_ADAPTER, report, attempts)
-        failures = report.failures()
+        # Revise the draft closest to passing, not the latest: a revision can overshoot
+        # (ops#537: unfamiliar share 9.3% → 14.9% → 10.2% against an 8% ceiling).
+        scores.append(_distance(report, rules))
+        best = min(range(len(scores)), key=scores.__getitem__)
+        failures = attempts[best]['failures'] if rules.count_unmastered else report.failures()
 
     text = excerpt(article.text, rules)
     return Adaptation(text, ORIGIN_FALLBACK, check(text), attempts)
